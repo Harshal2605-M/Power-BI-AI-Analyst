@@ -1555,14 +1555,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Mobile Copilot Backdrop */}
-      {!copilotCollapsed && (
-        <div 
-          className="copilot-backdrop" 
-          onClick={() => setCopilotCollapsed(true)} 
-        />
-      )}
-
       {/* Floating Copilot Button when collapsed */}
       {copilotCollapsed && (
         <button 
