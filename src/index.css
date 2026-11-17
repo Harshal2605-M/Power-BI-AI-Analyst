@@ -62,12 +62,13 @@
   padding: 0;
 }
 
-html, body, #root {
-  height: 100%;
+html, body {
+  min-height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto !important;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -75,23 +76,38 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Scrollbars */
+#root {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+}
+
+/* Custom Scrollbars - Clear, Visible & Elegant */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.35);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.28);
   border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(0, 0, 0, 0.35);
 }
 
 /* Typography styles */
@@ -115,7 +131,7 @@ code, pre {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   transition: all var(--transition-normal);
 }
 

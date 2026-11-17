@@ -869,7 +869,7 @@ export default function App() {
 
           {/* Dedicated Tab Panel Content - Settings Page */}
           {activeTab === 'settings' && (
-            <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', borderColor: bridgeStatus.isConnected ? 'rgba(16, 185, 129, 0.25)' : 'var(--glass-border)', transition: 'all var(--transition-normal)' }}>
+            <div className="glass-panel" style={{ padding: 'clamp(1rem, 2vw, 1.75rem)', display: 'flex', flexDirection: 'column', gap: '1.25rem', borderColor: bridgeStatus.isConnected ? 'rgba(16, 185, 129, 0.25)' : 'var(--glass-border)', transition: 'all var(--transition-normal)' }}>
               
               {/* Segmented Mode Switcher */}
               <div className="mode-switcher-container">
