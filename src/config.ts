@@ -1,6 +1,6 @@
 // Dynamic API Gateway configuration
 // Uses high-speed Cloudflare tunnel by default for zero-friction HTTPS connection
-export const LIVE_TUNNEL_URL = 'https://assessments-especially-elsewhere-entities.trycloudflare.com';
+export const LIVE_TUNNEL_URL = 'https://mag-conditional-declared-hepatitis.trycloudflare.com';
 
 export function getApiBaseUrl(): string {
   const saved = typeof window !== 'undefined' ? localStorage.getItem('powerbi_mcp_gateway_url') : null;

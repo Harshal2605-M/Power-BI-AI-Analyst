@@ -29,4 +29,5 @@ dist-ssr
 .env.production
 
 cloudflared.exe
+mcp-server/
 

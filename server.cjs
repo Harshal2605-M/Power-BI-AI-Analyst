@@ -12,7 +12,9 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
-const MCP_PATH = 'C:\\Users\\harsh\\Downloads\\analysis-services.powerbi-modeling-mcp-0.1.9@win32-x64\\extension\\server\\powerbi-modeling-mcp.exe';
+const LOCAL_MCP_PATH = path.join(__dirname, 'mcp-server', 'powerbi-modeling-mcp.exe');
+const DOWNLOADS_MCP_PATH = 'C:\\Users\\harsh\\Downloads\\analysis-services.powerbi-modeling-mcp-0.1.9@win32-x64\\extension\\server\\powerbi-modeling-mcp.exe';
+const MCP_PATH = fs.existsSync(LOCAL_MCP_PATH) ? LOCAL_MCP_PATH : DOWNLOADS_MCP_PATH;
 
 // ─── Google Gemini Client Configuration ──────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
