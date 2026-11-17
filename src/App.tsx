@@ -142,12 +142,12 @@ export default function App() {
 
   // Auto-fetch schema tables when connection changes
   useEffect(() => {
-    if (bridgeStatus.isConnected) {
+    if (bridgeStatus.isConnected && !pbixData) {
       fetchLiveTables();
-    } else {
+    } else if (!pbixData) {
       setLiveTables([]);
     }
-  }, [bridgeStatus.isConnected, bridgeStatus.connectionName]);
+  }, [bridgeStatus.isConnected, bridgeStatus.connectionName, pbixData]);
 
   // Background polling to auto-sync instances and handle connection changes
   useEffect(() => {
@@ -155,7 +155,7 @@ export default function App() {
       syncBridgeStatus();
     }, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [pbixData]);
 
   // Helper for requests with tunnel support (bypasses localtunnel/ngrok reminder screens)
   const apiFetch = (path: string, options: RequestInit = {}) => {
@@ -177,25 +177,29 @@ export default function App() {
         const connected = !!data.activeConnection;
         
         setBridgeStatus({
-          isConnected: connected,
-          connectionName: data.activeConnection || 'No Model Connected',
+          isConnected: connected || !!pbixData,
+          connectionName: connected ? (data.activeConnection || 'Local Model') : (pbixData ? pbixData.fileName : 'No Model Connected'),
           isOffline: false
         });
         
         fetchLocalInstances(!connected);
 
-        if (connected) {
+        if (connected && !pbixData) {
           fetchLiveTables();
-        } else {
+        } else if (!pbixData) {
           setLiveTables([]);
         }
       } else {
-        setBridgeStatus(prev => ({ ...prev, isOffline: true }));
+        setBridgeStatus({
+          isConnected: !!pbixData,
+          connectionName: pbixData ? pbixData.fileName : 'No Model Connected',
+          isOffline: true
+        });
       }
     } catch {
       setBridgeStatus({
-        isConnected: false,
-        connectionName: 'No Model Connected',
+        isConnected: !!pbixData,
+        connectionName: pbixData ? pbixData.fileName : 'No Model Connected',
         isOffline: true
       });
     }
@@ -593,11 +597,11 @@ export default function App() {
               <>
                 <span 
                   className="badge" 
-                  onClick={() => handleTabChange('settings')}
+                  onClick={() => handleTabChange(pbixData ? 'pbix' : 'settings')}
                   style={{ cursor: 'pointer', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', gap: '4px' }}
                 >
                   <Zap size={10} style={{ color: '#10b981' }} />
-                  LIVE: {bridgeStatus.connectionName}
+                  {pbixData ? `PBIX: ${pbixData.fileName}` : `LIVE: ${bridgeStatus.connectionName}`}
                 </span>
                 <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.25)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Brain size={10} />

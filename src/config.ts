@@ -2,7 +2,7 @@
 // Uses high-speed Cloudflare tunnel by default for zero-friction HTTPS connection
 export function getApiBaseUrl(): string {
   const saved = typeof window !== 'undefined' ? localStorage.getItem('powerbi_mcp_gateway_url') : null;
-  return saved || import.meta.env.VITE_API_URL || 'https://oven-prototype-earl-welfare.trycloudflare.com';
+  return saved || import.meta.env.VITE_API_URL || 'https://assessments-especially-elsewhere-entities.trycloudflare.com';
 }
 
 export function setApiBaseUrl(url: string): void {
