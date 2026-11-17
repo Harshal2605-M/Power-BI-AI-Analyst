@@ -114,11 +114,21 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Helper for requests with tunnel support (bypasses localtunnel/ngrok reminder screens)
+  const apiFetch = (path: string, options: RequestInit = {}) => {
+    const baseUrl = getApiBaseUrl();
+    const headers = {
+      'Bypass-Tunnel-Reminder': 'true',
+      'ngrok-skip-browser-warning': 'true',
+      ...(options.headers || {})
+    };
+    return fetch(`${baseUrl}${path}`, { ...options, headers });
+  };
+
   // Synchronize bridge state with local proxy backend server
   const syncBridgeStatus = async () => {
     try {
-      const baseUrl = getApiBaseUrl();
-      const res = await fetch(`${baseUrl}/api/status`);
+      const res = await apiFetch('/api/status');
       if (res.ok) {
         const data = await res.json();
         const connected = !!data.activeConnection;
@@ -151,8 +161,7 @@ export default function App() {
   // Poll open local .pbix files running on user computer via MCP
   const fetchLocalInstances = async (shouldAutoConnect = true) => {
     try {
-      const baseUrl = getApiBaseUrl();
-      const res = await fetch(`${baseUrl}/api/instances`);
+      const res = await apiFetch('/api/instances');
       if (res.ok) {
         const data = await res.json();
         if (data && data.content && data.content[0]) {
@@ -174,8 +183,7 @@ export default function App() {
   // Fetch actual tables and columns from the live PowerBI model via MCP
   const fetchLiveTables = async () => {
     try {
-      const baseUrl = getApiBaseUrl();
-      const res = await fetch(`${baseUrl}/api/tables`);
+      const res = await apiFetch('/api/tables');
       if (res.ok) {
         const data = await res.json();
         if (data && data.content && data.content[0]) {
@@ -185,7 +193,7 @@ export default function App() {
           const enrichedTables = [];
           for (const tbl of tablesArray) {
             try {
-              const colRes = await fetch(`${baseUrl}/api/columns?tableName=${encodeURIComponent(tbl.name)}`);
+              const colRes = await apiFetch(`/api/columns?tableName=${encodeURIComponent(tbl.name)}`);
               if (colRes.ok) {
                 const colData = await colRes.json();
                 if (colData && colData.content && colData.content[0]) {
@@ -216,8 +224,7 @@ export default function App() {
   const handleConnectLocal = async (port: number, name: string) => {
     setIsConnecting(true);
     try {
-      const baseUrl = getApiBaseUrl();
-      const res = await fetch(`${baseUrl}/api/connect-local`, {
+      const res = await apiFetch('/api/connect-local', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ port })
@@ -249,8 +256,7 @@ export default function App() {
     if (!fabricWorkspace || !fabricModel) return;
     setIsConnecting(true);
     try {
-      const baseUrl = getApiBaseUrl();
-      const res = await fetch(`${baseUrl}/api/connect-fabric`, {
+      const res = await apiFetch('/api/connect-fabric', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

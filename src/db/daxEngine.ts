@@ -18,7 +18,11 @@ export class DaxEngine {
     try {
       const baseUrl = getApiBaseUrl();
       const res = await fetch(`${baseUrl}/api/status`, {
-        headers: { 'Cache-Control': 'no-cache' }
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Bypass-Tunnel-Reminder': 'true',
+          'ngrok-skip-browser-warning': 'true'
+        }
       });
       if (res.ok) {
         const data = await res.json();
@@ -39,7 +43,11 @@ export class DaxEngine {
       const baseUrl = getApiBaseUrl();
       const res = await fetch(`${baseUrl}/api/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({ query: dax })
       });
       if (res.ok) {

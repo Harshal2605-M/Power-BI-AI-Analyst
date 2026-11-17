@@ -12,16 +12,15 @@ export interface AskResponse {
   suggestions?: string[];
 }
 
-/**
- * Call the LLM-powered /api/ask endpoint.
- * The server reads the live schema, feeds it to Google Gemini,
- * gets back a valid DAX query, executes it, and returns the results.
- */
 export async function askLLM(question: string): Promise<AskResponse> {
   const baseUrl = getApiBaseUrl();
   const response = await fetch(`${baseUrl}/api/ask`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Bypass-Tunnel-Reminder': 'true',
+      'ngrok-skip-browser-warning': 'true'
+    },
     body: JSON.stringify({ question })
   });
 
@@ -33,10 +32,6 @@ export async function askLLM(question: string): Promise<AskResponse> {
   return response.json();
 }
 
-/**
- * Convert an AskResponse to a DaxResult shape for compatibility
- * with existing chart/table rendering code.
- */
 export function toDaxResult(askResponse: AskResponse): DaxResult {
   return {
     columns: askResponse.columns || [],
