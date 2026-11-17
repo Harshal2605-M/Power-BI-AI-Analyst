@@ -20,7 +20,8 @@ import {
   Search,
   X,
   FileSpreadsheet,
-  Cloud
+  Cloud,
+  Menu
 } from 'lucide-react';
 import { daxEngine } from './db/daxEngine';
 import { parseFuzzyQuestion, generateInsights, groundedRepository } from './services/daxGenerator';
@@ -59,7 +60,14 @@ export default function App() {
   const [isVisualizerFullScreen, setIsVisualizerFullScreen] = useState(false);
   const [isDevToolsExpanded, setIsDevToolsExpanded] = useState(false);
   const [copilotCollapsed, setCopilotCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024) {
+      setCopilotCollapsed(true);
+    }
+  }, []);
   
   // PowerBI MCP Live Server Bridge State
   const [bridgeStatus, setBridgeStatus] = useState({
@@ -151,6 +159,7 @@ export default function App() {
 
   const handleTabChange = (tab: 'overview' | 'explorer' | 'pbix' | 'settings') => {
     setActiveTab(tab);
+    setMobileMenuOpen(false);
     window.scrollTo(0, 0);
     if (document.documentElement) document.documentElement.scrollTop = 0;
     if (document.body) document.body.scrollTop = 0;
@@ -660,13 +669,29 @@ export default function App() {
       <div className="glow-orb" style={{ width: '500px', height: '500px', bottom: '-150px', right: '10%', background: 'radial-gradient(circle, rgba(217, 70, 239, 0.1) 0%, transparent 75%)', animation: 'pulse-slow-reverse 25s infinite' }} />
       <div className="glow-orb" style={{ width: '350px', height: '350px', top: '35%', left: '40%', background: 'radial-gradient(circle, rgba(20, 184, 166, 0.08) 0%, transparent 70%)', animation: 'pulse-slow 18s infinite' }} />
 
+      {/* Mobile Sidebar Backdrop */}
+      {mobileMenuOpen && (
+        <div 
+          className="sidebar-backdrop" 
+          onClick={() => setMobileMenuOpen(false)} 
+        />
+      )}
+
       {/* Brand Left Navigation Sidebar */}
-      <div className="left-nav-sidebar">
+      <div className={`left-nav-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="nav-brand">
           <div className="brand-dot" />
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', background: 'linear-gradient(135deg, #ffffff 60%, #94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', background: 'linear-gradient(135deg, #ffffff 60%, #94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Power BI AI Analyst
           </h2>
+          <button 
+            type="button"
+            className="mobile-sidebar-close-btn"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         <div className="nav-list">
@@ -743,56 +768,69 @@ export default function App() {
         {/* Pinned Top Navigation Header */}
         <div className="top-nav-header">
           <div className="title-group" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            {/* Mobile Hamburger Toggle Button */}
+            <button
+              type="button"
+              className="mobile-menu-toggle"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              title="Toggle Menu"
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+
             <span className="pbi-badge" style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', color: 'white', border: 'none', boxShadow: '0 0 10px rgba(99, 102, 241, 0.3)' }}>
               MODELING MCP
             </span>
-            <h1 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
+            <h1 className="header-page-title" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
               {activeTab === 'overview' && 'Power BI Model Overview'}
               {activeTab === 'explorer' && 'Semantic Model Schema Explorer'}
               {activeTab === 'pbix' && 'Power BI Report (.PBIX) Studio & Analyzer'}
               {activeTab === 'settings' && (settingsMode === 'fabric' ? 'Microsoft Fabric XMLA (Cloud Enterprise)' : 'Power BI Local Gateway Bridge')}
             </h1>
             
-            {bridgeStatus.isConnected ? (
-              <>
+            <div className="header-status-badges" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {bridgeStatus.isConnected ? (
+                <>
+                  <span 
+                    className="badge badge-success-pill" 
+                    onClick={() => handleTabChange(pbixData ? 'pbix' : 'settings')}
+                    style={{ cursor: 'pointer', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Zap size={10} style={{ color: '#10b981' }} />
+                    <span className="badge-text">{pbixData ? `PBIX: ${pbixData.fileName}` : (fabricConnectionState ? `FABRIC XMLA: ${fabricConnectionState.model}` : `LIVE: ${bridgeStatus.connectionName}`)}</span>
+                  </span>
+                  <span className="badge badge-ai-pill" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.25)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Brain size={10} />
+                    <span className="badge-text">Gemini AI-Powered</span>
+                  </span>
+                </>
+              ) : (
                 <span 
-                  className="badge" 
-                  onClick={() => handleTabChange(pbixData ? 'pbix' : 'settings')}
-                  style={{ cursor: 'pointer', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  className="badge badge-offline-pill" 
+                  onClick={() => handleTabChange('settings')}
+                  style={{ cursor: 'pointer', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', gap: '4px' }}
                 >
-                  <Zap size={10} style={{ color: '#10b981' }} />
-                  {pbixData ? `PBIX: ${pbixData.fileName}` : (fabricConnectionState ? `FABRIC XMLA: ${fabricConnectionState.model}` : `LIVE: ${bridgeStatus.connectionName}`)}
+                  <span className="copilot-status-dot" style={{ background: '#f59e0b', width: '6px', height: '6px', animation: 'none' }} />
+                  <span className="badge-text">Offline (Connect to Power BI)</span>
                 </span>
-                <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.25)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Brain size={10} />
-                  Gemini AI-Powered
-                </span>
-              </>
-            ) : (
-              <span 
-                className="badge" 
-                onClick={() => handleTabChange('settings')}
-                style={{ cursor: 'pointer', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <span className="copilot-status-dot" style={{ background: '#f59e0b', width: '5px', height: '5px', animation: 'none' }} />
-                Offline (Connect to Power BI)
-              </span>
-            )}
+              )}
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div className="header-actions-group" style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
             <button 
-              className={`btn ${activeTab === 'pbix' ? 'btn-primary' : 'btn-secondary'}`}
+              className={`btn ${activeTab === 'pbix' ? 'btn-primary' : 'btn-secondary'} header-pbix-btn`}
               onClick={() => handleTabChange('pbix')}
               style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', height: '32px', display: 'flex', alignItems: 'center', gap: '6px' }}
               title="Add or inspect a .pbix report file"
             >
               <FileSpreadsheet size={13} style={{ color: pbixData ? '#34d399' : '#a855f7' }} />
-              <span>{pbixData ? pbixData.fileName : 'Add .pbix File'}</span>
+              <span className="btn-label-text">{pbixData ? pbixData.fileName : 'Add .pbix File'}</span>
             </button>
 
             <button 
-              className="btn btn-secondary" 
+              className="btn btn-secondary header-refresh-btn" 
               onClick={syncBridgeStatus}
               style={{ padding: '0.35rem 0.6rem', height: '32px' }}
               title="Refresh connection status"
@@ -801,11 +839,12 @@ export default function App() {
             </button>
             
             <button 
-              className="btn btn-secondary" 
+              className={`btn ${copilotCollapsed ? 'btn-secondary' : 'btn-primary'} header-copilot-toggle-btn`} 
               onClick={() => setCopilotCollapsed(!copilotCollapsed)}
-              style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', height: '32px' }}
+              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', height: '32px', display: 'flex', alignItems: 'center', gap: '5px' }}
             >
-              {copilotCollapsed ? 'Open AI Copilot' : 'Collapse Sidebar'}
+              <Sparkles size={13} />
+              <span className="btn-label-text">{copilotCollapsed ? 'Open AI Copilot' : 'Hide Copilot'}</span>
             </button>
           </div>
         </div>
@@ -833,25 +872,16 @@ export default function App() {
             <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', borderColor: bridgeStatus.isConnected ? 'rgba(16, 185, 129, 0.25)' : 'var(--glass-border)', transition: 'all var(--transition-normal)' }}>
               
               {/* Segmented Mode Switcher */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: 'rgba(255, 255, 255, 0.03)', padding: '6px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+              <div className="mode-switcher-container">
                 <button
                   type="button"
+                  className="mode-switcher-btn"
                   onClick={() => setSettingsMode('fabric')}
                   style={{
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
                     border: settingsMode === 'fabric' ? '1px solid #38bdf8' : '1px solid transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    fontSize: '0.88rem',
-                    fontWeight: 700,
                     background: settingsMode === 'fabric' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
                     color: settingsMode === 'fabric' ? 'white' : 'var(--text-secondary)',
                     boxShadow: settingsMode === 'fabric' ? '0 0 16px rgba(56, 189, 248, 0.35)' : 'none',
-                    transition: 'all 0.2s ease'
                   }}
                 >
                   <Cloud size={18} />
@@ -860,22 +890,13 @@ export default function App() {
 
                 <button
                   type="button"
+                  className="mode-switcher-btn"
                   onClick={() => setSettingsMode('local')}
                   style={{
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
                     border: settingsMode === 'local' ? '1px solid var(--secondary)' : '1px solid transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    fontSize: '0.88rem',
-                    fontWeight: 700,
                     background: settingsMode === 'local' ? 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)' : 'transparent',
                     color: settingsMode === 'local' ? 'white' : 'var(--text-secondary)',
                     boxShadow: settingsMode === 'local' ? '0 0 16px rgba(99, 102, 241, 0.35)' : 'none',
-                    transition: 'all 0.2s ease'
                   }}
                 >
                   <Link size={18} />
@@ -1189,7 +1210,7 @@ export default function App() {
               </div>
 
               {liveTables.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: '1rem' }}>
                   {liveTables.map((tbl: any) => (
                     <div key={tbl.name} className="schema-table-box" style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '1rem' }}>
                       <div className="schema-table-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.75rem' }}>
@@ -1533,6 +1554,28 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Mobile Copilot Backdrop */}
+      {!copilotCollapsed && (
+        <div 
+          className="copilot-backdrop" 
+          onClick={() => setCopilotCollapsed(true)} 
+        />
+      )}
+
+      {/* Floating Copilot Button when collapsed */}
+      {copilotCollapsed && (
+        <button 
+          type="button"
+          className="floating-copilot-btn"
+          onClick={() => setCopilotCollapsed(false)}
+          title="Open Senior AI Analyst Copilot"
+        >
+          <div className="floating-copilot-dot" />
+          <Sparkles size={16} />
+          <span>Ask Copilot</span>
+        </button>
+      )}
 
       {/* AI Copilot Side Console panel */}
       <div className={`copilot-sidebar ${copilotCollapsed ? 'collapsed' : ''}`}>

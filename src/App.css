@@ -1,184 +1,441 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
+/* ==========================================================================
+   Power BI AI Analyst - Clean, Responsive & Adaptive UI Stylesheet
+   ========================================================================== */
 
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+/* ─── Responsive Layout Breakpoints & Containers ──────────────────────────── */
+
+/* Sidebar Mobile Backdrop */
+.sidebar-backdrop,
+.copilot-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 4, 10, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 88;
+  animation: fadeInBackdrop 0.25s ease-out forwards;
 }
 
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
+@keyframes fadeInBackdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-#center {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
-}
-
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-#next-steps ul {
-  list-style: none;
+/* Mobile Menu Toggle Button (in Top Header) */
+.mobile-menu-toggle {
+  display: none;
+  width: 34px;
+  height: 34px;
   padding: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.mobile-menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.mobile-sidebar-close-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  margin-left: auto;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.mobile-sidebar-close-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ─── Top Header Polish & Adaptability ────────────────────────────────────── */
+.header-page-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 480px;
+}
+
+.badge-text {
+  white-space: nowrap;
+}
+
+.header-actions-group {
+  flex-shrink: 0;
+}
+
+/* ─── Segmented Connection Mode Switcher ──────────────────────────────────── */
+.mode-switcher-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s ease;
+}
+
+.mode-switcher-btn {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
   display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
+  font-size: 0.88rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  font-family: inherit;
 }
 
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
+/* ─── Floating Copilot Pill (Shown when Copilot is collapsed) ─────────────── */
+.floating-copilot-btn {
+  position: fixed;
+  bottom: 1.75rem;
+  right: 1.75rem;
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.65rem 1.15rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4), 0 0 20px rgba(217, 70, 239, 0.25);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: floatBounce 4s ease-in-out infinite;
 }
 
-.ticks {
+.floating-copilot-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.5), 0 0 25px rgba(217, 70, 239, 0.35);
+}
+
+.floating-copilot-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px #34d399;
+}
+
+@keyframes floatBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ─── Card & Container Elements ────────────────────────────────────────── */
+.card {
+  background: rgba(11, 15, 25, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: all var(--transition-normal);
   position: relative;
+  overflow: hidden;
+}
+
+.card:hover {
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(99, 102, 241, 0.05);
+}
+
+/* Input Fields */
+.input-field {
+  background: rgba(6, 10, 20, 0.85);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-field:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+/* Spin Animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+  display: inline-block;
+}
+
+/* ─── Form Controls & Polish ─────────────────────────────────────────────── */
+input[type="text"],
+input[type="search"],
+textarea {
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="search"]:focus,
+textarea:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+  outline: none !important;
+}
+
+/* Button Refinements */
+.btn {
+  font-family: inherit;
+  user-select: none;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Clean Badge Styling */
+.badge {
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.3;
+}
+
+/* ─── Table Polish & Scroll Indicators ───────────────────────────────────── */
+.table-responsive-wrapper {
   width: 100%;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: rgba(4, 6, 12, 0.4);
+  -webkit-overflow-scrolling: touch;
+}
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
+.table-responsive-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-responsive-wrapper th {
+  position: sticky;
+  top: 0;
+  background: rgba(6, 10, 20, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 2;
+}
+
+/* ─── Responsive Media Queries ───────────────────────────────────────────── */
+
+/* Laptops & Compact Desktops (<= 1280px) */
+@media (max-width: 1280px) {
+  .left-nav-sidebar {
+    width: 230px;
+    padding: 1.5rem 1rem;
+    gap: 1.5rem;
   }
 
-  &::before {
+  .header-page-title {
+    max-width: 320px;
+    font-size: 1.15rem;
+  }
+
+  .dashboard-canvas {
+    padding: 1.75rem 1.75rem;
+    gap: 1.75rem;
+  }
+
+  .copilot-sidebar {
+    width: 370px;
+  }
+}
+
+/* Tablets (<= 1024px) */
+@media (max-width: 1024px) {
+  /* Sidebar becomes off-canvas drawer */
+  .left-nav-sidebar {
+    position: fixed;
+    top: 0;
     left: 0;
-    border-left-color: var(--border);
+    bottom: 0;
+    width: 270px;
+    z-index: 99;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: none;
   }
-  &::after {
+
+  .left-nav-sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 20px 0 50px rgba(0, 0, 0, 0.85);
+  }
+
+  .mobile-menu-toggle {
+    display: inline-flex;
+  }
+
+  .mobile-sidebar-close-btn {
+    display: inline-flex;
+  }
+
+  /* Copilot becomes off-canvas drawer */
+  .copilot-sidebar {
+    position: fixed;
+    top: 0;
     right: 0;
-    border-right-color: var(--border);
+    bottom: 0;
+    width: min(440px, 92vw);
+    z-index: 99;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: -15px 0 50px rgba(0, 0, 0, 0.85);
+  }
+
+  .copilot-sidebar:not(.collapsed) {
+    transform: translateX(0);
+  }
+
+  .copilot-sidebar.collapsed {
+    width: min(440px, 92vw);
+    transform: translateX(100%);
+  }
+
+  .dashboard-canvas {
+    padding: 1.5rem 1.25rem;
+    gap: 1.5rem;
+  }
+
+  .top-nav-header {
+    padding: 0.75rem 1.25rem;
+  }
+
+  .header-page-title {
+    max-width: 260px;
+    font-size: 1.05rem;
+  }
+
+  .badge-ai-pill {
+    display: none !important;
+  }
+}
+
+/* Mobile Devices (<= 768px) */
+@media (max-width: 768px) {
+  .top-nav-header {
+    padding: 0.65rem 0.85rem;
+    gap: 0.5rem;
+  }
+
+  .title-group {
+    gap: 0.5rem !important;
+  }
+
+  .pbi-badge {
+    display: none !important;
+  }
+
+  .header-page-title {
+    font-size: 0.95rem !important;
+    max-width: 170px;
+  }
+
+  .header-status-badges {
+    display: none !important;
+  }
+
+  .header-pbix-btn .btn-label-text,
+  .header-copilot-toggle-btn .btn-label-text {
+    display: none;
+  }
+
+  .dashboard-canvas {
+    padding: 1rem 0.75rem;
+    gap: 1rem;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .mode-switcher-container {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-switcher-btn {
+    font-size: 0.82rem;
+    padding: 0.65rem;
+  }
+
+  .glass-panel {
+    padding: 1.25rem !important;
+    border-radius: 12px;
+  }
+
+  .kpi-card {
+    padding: 1rem;
+  }
+
+  .kpi-value {
+    font-size: 1.75rem;
+  }
+
+  .floating-copilot-btn {
+    bottom: 1rem;
+    right: 1rem;
+    padding: 0.55rem 0.95rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* Small Smartphone Screens (<= 480px) */
+@media (max-width: 480px) {
+  .header-page-title {
+    max-width: 130px;
+  }
+
+  .header-actions-group {
+    gap: 0.35rem !important;
+  }
+
+  .btn {
+    font-size: 0.78rem;
+  }
+
+  .copilot-sidebar {
+    width: 100vw;
   }
 }

@@ -407,7 +407,7 @@ export const PbixStudio: React.FC<PbixStudioProps> = ({
           </div>
 
           {/* Sub-tab Navigation */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', gap: '0.5rem', overflowX: 'auto', flexWrap: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
             <button
               onClick={() => setActiveSubTab('measures')}
               style={{
@@ -421,7 +421,8 @@ export const PbixStudio: React.FC<PbixStudioProps> = ({
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
+                whiteSpace: 'nowrap'
               }}
             >
               <Code2 size={14} />
@@ -441,7 +442,8 @@ export const PbixStudio: React.FC<PbixStudioProps> = ({
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
+                whiteSpace: 'nowrap'
               }}
             >
               <BarChart2 size={14} />
@@ -461,7 +463,8 @@ export const PbixStudio: React.FC<PbixStudioProps> = ({
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
+                whiteSpace: 'nowrap'
               }}
             >
               <Layers size={14} />
@@ -481,7 +484,8 @@ export const PbixStudio: React.FC<PbixStudioProps> = ({
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
+                whiteSpace: 'nowrap'
               }}
             >
               <ExternalLink size={14} />
