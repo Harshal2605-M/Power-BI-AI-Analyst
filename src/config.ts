@@ -1,4 +1,13 @@
-// API Gateway Base URL
-// In development: defaults to local proxy backend at http://localhost:3001
-// In production: can be configured via VITE_API_URL environment variable
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Dynamic API Gateway configuration
+// Allows any user on the deployed Vercel site to connect to their own local bridge or tunnel
+export function getApiBaseUrl(): string {
+  const saved = typeof window !== 'undefined' ? localStorage.getItem('powerbi_mcp_gateway_url') : null;
+  return saved || import.meta.env.VITE_API_URL || 'http://localhost:3001';
+}
+
+export function setApiBaseUrl(url: string): void {
+  const clean = url.trim().replace(/\/+$/, '');
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('powerbi_mcp_gateway_url', clean);
+  }
+}

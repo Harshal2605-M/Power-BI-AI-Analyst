@@ -1,5 +1,5 @@
 import type { DaxResult } from '../db/daxEngine';
-import { API_BASE_URL } from '../config';
+import { getApiBaseUrl } from '../config';
 
 export interface AskResponse {
   dax: string;
@@ -18,7 +18,8 @@ export interface AskResponse {
  * gets back a valid DAX query, executes it, and returns the results.
  */
 export async function askLLM(question: string): Promise<AskResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/ask`, {
+  const baseUrl = getApiBaseUrl();
+  const response = await fetch(`${baseUrl}/api/ask`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question })

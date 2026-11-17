@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { getApiBaseUrl } from '../config';
 
 export interface DaxResult {
   columns: string[];
@@ -16,7 +16,8 @@ export class DaxEngine {
 
   public async syncLiveStatus(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/status`, {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/status`, {
         headers: { 'Cache-Control': 'no-cache' }
       });
       if (res.ok) {
@@ -35,7 +36,8 @@ export class DaxEngine {
   public async evaluate(dax: string): Promise<DaxResult> {
     const startTime = performance.now();
     try {
-      const res = await fetch(`${API_BASE_URL}/api/query`, {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: dax })

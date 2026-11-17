@@ -23,7 +23,7 @@ import {
 import { daxEngine } from './db/daxEngine';
 import { parseFuzzyQuestion, generateInsights, groundedRepository } from './services/daxGenerator';
 import { askLLM, toDaxResult } from './services/llmService';
-import { API_BASE_URL } from './config';
+import { getApiBaseUrl, setApiBaseUrl } from './config';
 import type { DaxResult } from './db/daxEngine';
 import type { GroundedQuery } from './services/daxGenerator';
 
@@ -68,6 +68,7 @@ export default function App() {
   const [fabricWorkspace, setFabricWorkspace] = useState('');
   const [fabricModel, setFabricModel] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [customGatewayUrl, setCustomGatewayUrl] = useState(getApiBaseUrl());
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -116,7 +117,8 @@ export default function App() {
   // Synchronize bridge state with local proxy backend server
   const syncBridgeStatus = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/status`);
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/status`);
       if (res.ok) {
         const data = await res.json();
         const connected = !!data.activeConnection;
@@ -149,7 +151,8 @@ export default function App() {
   // Poll open local .pbix files running on user computer via MCP
   const fetchLocalInstances = async (shouldAutoConnect = true) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/instances`);
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/instances`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.content && data.content[0]) {
@@ -171,7 +174,8 @@ export default function App() {
   // Fetch actual tables and columns from the live PowerBI model via MCP
   const fetchLiveTables = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/tables`);
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/tables`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.content && data.content[0]) {
@@ -181,7 +185,7 @@ export default function App() {
           const enrichedTables = [];
           for (const tbl of tablesArray) {
             try {
-              const colRes = await fetch(`${API_BASE_URL}/api/columns?tableName=${encodeURIComponent(tbl.name)}`);
+              const colRes = await fetch(`${baseUrl}/api/columns?tableName=${encodeURIComponent(tbl.name)}`);
               if (colRes.ok) {
                 const colData = await colRes.json();
                 if (colData && colData.content && colData.content[0]) {
@@ -212,7 +216,8 @@ export default function App() {
   const handleConnectLocal = async (port: number, name: string) => {
     setIsConnecting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/connect-local`, {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/connect-local`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ port })
@@ -244,7 +249,8 @@ export default function App() {
     if (!fabricWorkspace || !fabricModel) return;
     setIsConnecting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/connect-fabric`, {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/connect-fabric`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -588,6 +594,40 @@ export default function App() {
                     </span>
                   )}
                 </div>
+              </div>
+
+              {/* Dynamic Gateway URL Configuration for Any Visitor */}
+              <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1.25rem', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Zap size={14} style={{ color: 'var(--secondary)' }} />
+                    MCP Gateway Endpoint URL
+                  </label>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Configured per visitor in browser localStorage</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    className="chat-text-input"
+                    placeholder="http://localhost:3001 or https://your-tunnel.loca.lt"
+                    value={customGatewayUrl}
+                    onChange={(e) => setCustomGatewayUrl(e.target.value)}
+                    style={{ flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontSize: '0.8rem', padding: '0.4rem 0.75rem', color: 'white' }}
+                  />
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setApiBaseUrl(customGatewayUrl);
+                      syncBridgeStatus();
+                    }}
+                    style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', borderRadius: '6px' }}
+                  >
+                    Save &amp; Connect
+                  </button>
+                </div>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                  💡 <strong>For anyone using this deployed app:</strong> To connect to Power BI Desktop running on your PC, start your local bridge (<code style={{ color: 'var(--primary)' }}>node server.cjs</code>), expose it with a free HTTPS tunnel (<code style={{ color: 'var(--primary)' }}>npx localtunnel --port 3001</code>), and paste the tunnel URL above!
+                </p>
               </div>
 
               {!bridgeStatus.isOffline ? (
