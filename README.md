@@ -3,11 +3,13 @@
 [![React 19](https://img.shields.io/badge/React-19-61dafb.svg?style=flat-square&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-8.0-646cff.svg?style=flat-square&logo=vite)](https://vitejs.dev/)
-[![Google Gemini](https://img.shields.io/badge/AI-Gemini%202.5%20Flash-8e75ff.svg?style=flat-square&logo=google)](https://ai.google.dev/)
+[![Google Gemini](https://img.shields.io/badge/AI-Gemini%20Flash-8e75ff.svg?style=flat-square&logo=google)](https://ai.google.dev/)
 [![Power BI MCP](https://img.shields.io/badge/Protocol-Model%20Context%20Protocol-10b981.svg?style=flat-square)](https://github.com/modelcontextprotocol)
-[![Deploy with Vercel](https://img.shields.io/badge/Deploy-Vercel-black.svg?style=flat-square&logo=vercel)](https://vercel.com/)
+[![Deployed on Vercel](https://img.shields.io/badge/Live%20Demo-power--bi--ai--analyst.vercel.app-blueviolet.svg?style=flat-square&logo=vercel)](https://power-bi-ai-analyst.vercel.app)
 
 An autonomous, model-agnostic **Generative AI Business Intelligence Analyst** for Microsoft Power BI and Fabric.
+
+🔗 **Live Application**: [https://power-bi-ai-analyst.vercel.app](https://power-bi-ai-analyst.vercel.app)
 
 Connect your open Power BI Desktop files or Microsoft Fabric XMLA models, ask business questions in natural language, and let Google Gemini formulate mathematically grounded DAX queries, execute them via the **Power BI Modeling Model Context Protocol (MCP)**, and dynamically render interactive SVG visualizations and executive narratives.
 
@@ -104,6 +106,109 @@ sequenceDiagram
 
 ---
 
+## 👥 How Anyone Can Use This Deployed App
+
+The application is deployed live at: **[https://power-bi-ai-analyst.vercel.app](https://power-bi-ai-analyst.vercel.app)**
+
+Depending on your goal, there are **3 distinct ways** anyone can use this app:
+
+---
+
+### 🌟 Scenario 1: Quick Demo & Exploration (Zero Setup Required)
+> **Best for:** Evaluators, recruiters, clients, and teammates who want an immediate hands-on test drive without installing anything.
+
+When the host system is active, the deployed web app is already bridged to a live semantic model.
+
+1. **Open the web app**: Navigate to [https://power-bi-ai-analyst.vercel.app](https://power-bi-ai-analyst.vercel.app).
+2. **Check Connection**: Look at the top navigation bar. If it shows **`Live Connected`**, you are ready to query!
+3. **Ask Any Business Question**: Type in the copilot chat on the right, or click any prompt pill:
+   - *"Show total row counts and records across all tables"*
+   - *"What is the monthly forecast trend?"*
+   - *"Top 10 categories ranked by usage"*
+4. **Explore the Results**:
+   - The AI writes grounded DAX in real-time, queries the tabular model, and returns verified rows.
+   - The frontend automatically picks the ideal visualization (Interactive Bar Chart, Line Graph, Donut Chart, or Data Grid).
+   - Use the **Schema Explorer** in the left sidebar to inspect table structures, columns, and data types.
+
+---
+
+### 💻 Scenario 2: Connect to YOUR OWN Power BI Desktop File (`.pbix`)
+> **Best for:** Data analysts and team members who want to query their own local `.pbix` reports using this AI frontend.
+
+Because Power BI Desktop stores data in a local in-memory database (`msmdsrv.exe`) on your Windows PC, browsers running on the public cloud cannot reach your private `localhost` directly without a secure HTTPS bridge. 
+
+Follow these **3 quick steps** to connect the web app to your own machine:
+
+#### Step 1: Open Power BI Desktop
+Open any `.pbix` file on your Windows computer. Keep Power BI Desktop open.
+
+#### Step 2: Start Your Local MCP Gateway & Tunnel
+Clone or download this repository on your PC, then in terminal run:
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Start the local bridge (it auto-detects your open Power BI Desktop port)
+node server.cjs
+```
+
+In a second terminal, expose your local bridge (`http://localhost:3001`) via a free tunnel:
+
+* **Option A — Cloudflare Tunnel (Recommended: No signup, fastest):**
+  ```bash
+  # Download cloudflared or run via npx:
+  npx --yes untun tunnel http://localhost:3001
+  # OR if you have cloudflared.exe:
+  .\cloudflared.exe tunnel --url http://localhost:3001
+  ```
+  *Copy the generated `https://*.trycloudflare.com` URL.*
+
+* **Option B — ngrok:**
+  ```bash
+  npx ngrok http 3001
+  ```
+  *Copy the generated `https://*.ngrok-free.app` URL.*
+
+* **Option C — localtunnel:**
+  ```bash
+  npx localtunnel --port 3001
+  ```
+
+#### Step 3: Paste Your Tunnel URL in the Web App
+1. Open [https://power-bi-ai-analyst.vercel.app](https://power-bi-ai-analyst.vercel.app).
+2. In the left navigation, click **Connection Settings**.
+3. Under **MCP Gateway Endpoint URL**, replace `http://localhost:3001` with your HTTPS tunnel URL (e.g. `https://xxxx.trycloudflare.com`).
+4. Click **Save & Connect**.
+
+🎉 **You're connected!** The web app now sends your natural language questions directly to your own Power BI Desktop file, executes DAX against your private dataset, and displays your insights! *(Your tunnel URL is saved in your browser's `localStorage` and is never shared with anyone else).*
+
+---
+
+### ☁️ Scenario 3: 100% Cloud / Enterprise (Microsoft Fabric & Power BI XMLA)
+> **Best for:** Enterprise teams using Power BI Service (Premium / Fabric) who want to query cloud semantic models without running any local software.
+
+1. Open [https://power-bi-ai-analyst.vercel.app](https://power-bi-ai-analyst.vercel.app) on **any device** (Windows, Mac, iPad, Linux, smartphone).
+2. Go to **Connection Settings** in the sidebar.
+3. Switch to **Option B: Microsoft Fabric XMLA Endpoint**.
+4. Fill in:
+   - **Workspace Connection**: `powerbi://api.powerbi.com/v1.0/myorg/YourWorkspaceName`
+   - **Semantic Model / Dataset Name**: `YourDatasetName`
+5. Click **Connect to Fabric Model**.
+6. Query live enterprise datasets with zero local software or desktop dependencies.
+
+---
+
+### 📊 Summary Comparison
+
+| Feature / Scenario | 🌟 Scenario 1: Host Demo | 💻 Scenario 2: Your Own `.pbix` | ☁️ Scenario 3: Cloud Fabric XMLA |
+|---|---|---|---|
+| **Local Setup Needed** | ❌ None (0 sec) | ⚙️ Run `server.cjs` + Tunnel | ❌ None |
+| **User Device** | Any (PC, Mac, Mobile) | Windows (where PBI runs) | Any (PC, Mac, Mobile) |
+| **Dataset Source** | Host's active model | Your private `.pbix` file | Power BI Service / Fabric |
+| **Privacy / Isolation** | Shared demo model | 100% Local to your PC | Microsoft Entra / Tenant Cloud |
+
+---
+
 ## 📋 Prerequisites
 
 1. **Operating System**: Windows 10/11 (for local Power BI Desktop connectivity).
@@ -119,7 +224,7 @@ sequenceDiagram
 ### 1. Clone & Install Dependencies
 
 ```bash
-git clone https://github.com/<your-username>/powerbi-mcp-analyst.git
+git clone https://github.com/Harshal2605-M/Power-BI-AI-Analyst.git
 cd powerbi-mcp-analyst
 npm install
 ```
@@ -132,8 +237,8 @@ Create a `.env` file in the project root:
 # Google Gemini API Key from Google AI Studio
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# Recommended Gemini Model (gemini-2.5-flash)
-GEMINI_MODEL=gemini-2.5-flash
+# Recommended Gemini Model (gemini-3.5-flash-lite or gemini-2.5-flash)
+GEMINI_MODEL=gemini-3.5-flash-lite
 
 # Backend Proxy Port
 PORT=3001
@@ -200,7 +305,7 @@ Because Power BI Desktop runs locally on your PC, cloud-hosted web apps on Verce
    git add .
    git commit -m "feat: Power BI MCP Analyst"
    git branch -M main
-   git remote add origin https://github.com/<your-username>/powerbi-mcp-analyst.git
+   git remote add origin https://github.com/Harshal2605-M/Power-BI-AI-Analyst.git
    git push -u origin main
    ```
 2. Import the project in [vercel.com/new](https://vercel.com/new).
