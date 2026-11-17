@@ -821,12 +821,20 @@ export default function App() {
                     <Zap size={14} style={{ color: 'var(--secondary)' }} />
                     MCP Gateway Endpoint URL
                   </label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleSaveGateway('http://localhost:3001')}
+                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', height: '26px' }}
+                      title="Use direct localhost:3001 (best when running on http://localhost:5173)"
+                    >
+                      💻 Use localhost:3001
+                    </button>
                     <button
                       className="btn btn-secondary"
                       onClick={() => handleSaveGateway(LIVE_TUNNEL_URL)}
                       style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', height: '26px' }}
-                      title="Auto-fill the live Cloudflare tunnel"
+                      title="Auto-fill the live Cloudflare tunnel (for Vercel HTTPS)"
                     >
                       ⚡ Auto-Fill Active Cloudflare Tunnel
                     </button>
