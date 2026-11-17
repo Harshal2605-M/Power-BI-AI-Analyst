@@ -1,8 +1,8 @@
 // Dynamic API Gateway configuration
-// Allows any user on the deployed Vercel site to connect to their own local bridge or tunnel
+// Uses high-speed Cloudflare tunnel by default for zero-friction HTTPS connection
 export function getApiBaseUrl(): string {
   const saved = typeof window !== 'undefined' ? localStorage.getItem('powerbi_mcp_gateway_url') : null;
-  return saved || import.meta.env.VITE_API_URL || 'https://powerbi-mcp-analyst.loca.lt';
+  return saved || import.meta.env.VITE_API_URL || 'https://oven-prototype-earl-welfare.trycloudflare.com';
 }
 
 export function setApiBaseUrl(url: string): void {
