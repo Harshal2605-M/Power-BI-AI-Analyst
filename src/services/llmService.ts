@@ -77,22 +77,26 @@ Respond with a single, pure JSON object (no markdown, no backticks):
 
   const userPrompt = `Answer this analytical question on the .pbix model: "${question}"`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GEMINI_API_KEY}`
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gemini-2.5-flash',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+      system_instruction: {
+        parts: [{ text: systemPrompt }]
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: userPrompt }]
+        }
       ],
-      temperature: 0.1,
-      max_tokens: 8000,
-      response_format: { type: 'json_object' }
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.1
+      }
     })
   });
 
@@ -102,8 +106,9 @@ Respond with a single, pure JSON object (no markdown, no backticks):
   }
 
   const data = await response.json();
-  const content = data.choices[0].message.content.trim();
-  const parsed = JSON.parse(content);
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '{}';
+  const cleanJson = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  const parsed = JSON.parse(cleanJson);
 
   return {
     dax: (parsed.dax || '').trim(),

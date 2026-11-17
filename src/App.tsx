@@ -19,7 +19,8 @@ import {
   Minimize2,
   Search,
   X,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Cloud
 } from 'lucide-react';
 import { daxEngine } from './db/daxEngine';
 import { parseFuzzyQuestion, generateInsights, groundedRepository } from './services/daxGenerator';
@@ -72,6 +73,7 @@ export default function App() {
   const [fabricWorkspace, setFabricWorkspace] = useState('');
   const [fabricModel, setFabricModel] = useState('');
   const [fabricConnectionState, setFabricConnectionState] = useState<{ isConnected: boolean; workspace: string; model: string } | null>(null);
+  const [settingsMode, setSettingsMode] = useState<'fabric' | 'local'>('fabric');
   const [isConnecting, setIsConnecting] = useState(false);
   const [customGatewayUrl, setCustomGatewayUrl] = useState(getApiBaseUrl());
   const [gatewayStatusMsg, setGatewayStatusMsg] = useState<{ type: 'success' | 'error' | 'loading'; text: string } | null>(null);
@@ -230,29 +232,31 @@ export default function App() {
         const connected = !!data.activeConnection;
         
         setBridgeStatus({
-          isConnected: connected || !!pbixData,
-          connectionName: connected ? (data.activeConnection || 'Local Model') : (pbixData ? pbixData.fileName : 'No Model Connected'),
+          isConnected: connected || !!pbixData || !!fabricConnectionState?.isConnected,
+          connectionName: connected 
+            ? (data.activeConnection || 'Local Model') 
+            : (pbixData ? pbixData.fileName : (fabricConnectionState?.isConnected ? `Fabric: ${fabricConnectionState.model}` : 'No Model Connected')),
           isOffline: false
         });
         
         fetchLocalInstances(!connected);
 
-        if (connected && !pbixData) {
+        if (connected && !pbixData && !fabricConnectionState?.isConnected) {
           fetchLiveTables();
-        } else if (!pbixData) {
+        } else if (!pbixData && !fabricConnectionState?.isConnected) {
           setLiveTables([]);
         }
       } else {
         setBridgeStatus({
-          isConnected: !!pbixData,
-          connectionName: pbixData ? pbixData.fileName : 'No Model Connected',
+          isConnected: !!pbixData || !!fabricConnectionState?.isConnected,
+          connectionName: pbixData ? pbixData.fileName : (fabricConnectionState?.isConnected ? `Fabric: ${fabricConnectionState.model}` : 'No Model Connected'),
           isOffline: true
         });
       }
     } catch {
       setBridgeStatus({
-        isConnected: !!pbixData,
-        connectionName: pbixData ? pbixData.fileName : 'No Model Connected',
+        isConnected: !!pbixData || !!fabricConnectionState?.isConnected,
+        connectionName: pbixData ? pbixData.fileName : (fabricConnectionState?.isConnected ? `Fabric: ${fabricConnectionState.model}` : 'No Model Connected'),
         isOffline: true
       });
     }
@@ -439,6 +443,16 @@ export default function App() {
 
     setMessages(prev => [...prev, infoMsg]);
     setIsConnecting(false);
+  };
+
+  const handleDisconnectFabric = () => {
+    setFabricConnectionState(null);
+    setBridgeStatus({
+      isConnected: false,
+      connectionName: 'No Model Connected',
+      isOffline: true
+    });
+    setLiveTables([]);
   };
 
   // Execute a business query end-to-end
@@ -686,12 +700,35 @@ export default function App() {
           </div>
 
           <div 
-            className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} 
-            onClick={() => handleTabChange('settings')}
-            style={{ marginTop: '1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '1.5rem' }}
+            className={`nav-item ${activeTab === 'settings' && settingsMode === 'fabric' ? 'active' : ''}`} 
+            onClick={() => {
+              setSettingsMode('fabric');
+              handleTabChange('settings');
+            }}
+          >
+            <Cloud size={16} style={{ color: fabricConnectionState?.isConnected ? '#38bdf8' : '#38bdf8' }} />
+            <span>Fabric XMLA (Cloud)</span>
+            {fabricConnectionState?.isConnected ? (
+              <span className="badge" style={{ marginLeft: 'auto', padding: '1px 5px', fontSize: '0.65rem', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>
+                Active
+              </span>
+            ) : (
+              <span className="badge" style={{ marginLeft: 'auto', padding: '1px 5px', fontSize: '0.65rem', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
+                Cloud
+              </span>
+            )}
+          </div>
+
+          <div 
+            className={`nav-item ${activeTab === 'settings' && settingsMode === 'local' ? 'active' : ''}`} 
+            onClick={() => {
+              setSettingsMode('local');
+              handleTabChange('settings');
+            }}
+            style={{ marginTop: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '1rem' }}
           >
             <Link size={16} />
-            <span>Connection Settings</span>
+            <span>Local Gateway Bridge</span>
           </div>
         </div>
 
@@ -713,7 +750,7 @@ export default function App() {
               {activeTab === 'overview' && 'Power BI Model Overview'}
               {activeTab === 'explorer' && 'Semantic Model Schema Explorer'}
               {activeTab === 'pbix' && 'Power BI Report (.PBIX) Studio & Analyzer'}
-              {activeTab === 'settings' && 'MCP Connection Gateway Manager'}
+              {activeTab === 'settings' && (settingsMode === 'fabric' ? 'Microsoft Fabric XMLA (Cloud Enterprise)' : 'Power BI Local Gateway Bridge')}
             </h1>
             
             {bridgeStatus.isConnected ? (
@@ -794,168 +831,139 @@ export default function App() {
           {/* Dedicated Tab Panel Content - Settings Page */}
           {activeTab === 'settings' && (
             <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', borderColor: bridgeStatus.isConnected ? 'rgba(16, 185, 129, 0.25)' : 'var(--glass-border)', transition: 'all var(--transition-normal)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <Link size={20} style={{ color: bridgeStatus.isConnected ? 'var(--success)' : 'var(--primary)' }} />
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {bridgeStatus.isConnected ? `Bridge Status: Connected to ${bridgeStatus.connectionName}` : 'Power BI Modeling MCP Gateway Manager'}
-                  </h3>
-                  {bridgeStatus.isConnected && (
-                    <span className="pbi-badge" style={{ background: 'var(--success-glow)', border: '1px solid var(--success)', color: 'var(--success)', textShadow: 'none', boxShadow: 'none', padding: '0.1rem 0.5rem', fontSize: '0.7rem' }}>ACTIVE CONNECTION</span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  {bridgeStatus.isOffline && (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <AlertCircle size={14} />
-                      Express Proxy Offline (Run node server.cjs)
-                    </span>
-                  )}
-                </div>
+              
+              {/* Segmented Mode Switcher */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: 'rgba(255, 255, 255, 0.03)', padding: '6px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                <button
+                  type="button"
+                  onClick={() => setSettingsMode('fabric')}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    border: settingsMode === 'fabric' ? '1px solid #38bdf8' : '1px solid transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    background: settingsMode === 'fabric' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
+                    color: settingsMode === 'fabric' ? 'white' : 'var(--text-secondary)',
+                    boxShadow: settingsMode === 'fabric' ? '0 0 16px rgba(56, 189, 248, 0.35)' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Cloud size={18} />
+                  <span>☁️ Option B: Microsoft Fabric XMLA (100% Cloud Enterprise)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSettingsMode('local')}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    border: settingsMode === 'local' ? '1px solid var(--secondary)' : '1px solid transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    background: settingsMode === 'local' ? 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)' : 'transparent',
+                    color: settingsMode === 'local' ? 'white' : 'var(--text-secondary)',
+                    boxShadow: settingsMode === 'local' ? '0 0 16px rgba(99, 102, 241, 0.35)' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Link size={18} />
+                  <span>💻 Option A: Local Power BI Desktop Bridge</span>
+                </button>
               </div>
 
-              {/* Dynamic Gateway URL Configuration for Any Visitor */}
-              <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1.25rem', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Zap size={14} style={{ color: 'var(--secondary)' }} />
-                    MCP Gateway Endpoint URL
-                  </label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => handleSaveGateway(LIVE_TUNNEL_URL)}
-                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', height: '26px' }}
-                      title="Auto-fill the live Cloudflare tunnel"
-                    >
-                      ⚡ Auto-Fill Active Cloudflare Tunnel
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={handleResetGateway}
-                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', height: '26px' }}
-                      title="Clear saved localStorage and restore default"
-                    >
-                      🔄 Reset Default
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    className="chat-text-input"
-                    placeholder="https://your-tunnel.trycloudflare.com or http://localhost:3001"
-                    value={customGatewayUrl}
-                    onChange={(e) => setCustomGatewayUrl(e.target.value)}
-                    style={{ flex: 1, minWidth: '280px', background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontSize: '0.8rem', padding: '0.4rem 0.75rem', color: 'white' }}
-                  />
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => handleSaveGateway()}
-                    style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', borderRadius: '6px' }}
-                  >
-                    Save &amp; Connect
-                  </button>
-                </div>
-
-                {gatewayStatusMsg && (
-                  <div style={{
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '6px',
-                    fontSize: '0.78rem',
-                    background: gatewayStatusMsg.type === 'success' 
-                      ? 'rgba(16, 185, 129, 0.15)' 
-                      : (gatewayStatusMsg.type === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(99, 102, 241, 0.15)'),
-                    border: gatewayStatusMsg.type === 'success'
-                      ? '1px solid rgba(16, 185, 129, 0.3)'
-                      : (gatewayStatusMsg.type === 'error' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)'),
-                    color: gatewayStatusMsg.type === 'success' ? '#34d399' : (gatewayStatusMsg.type === 'error' ? '#f87171' : '#a5b4fc')
-                  }}>
-                    {gatewayStatusMsg.text}
-                  </div>
-                )}
-
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  💡 <strong>Important Note:</strong> Because this deployed app is served over secure <strong>HTTPS</strong>, web browsers block insecure <code>http://localhost:3001</code> (Mixed Content). To query your local Power BI Desktop, enter an HTTPS tunnel URL (e.g. Cloudflare Tunnel or ngrok) above, or run the frontend locally at <code>http://localhost:5173</code>.
-                </p>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '2rem', marginTop: '0.5rem' }}>
-                {/* Option A: Connect to open local Desktop files */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <h4 style={{ fontSize: '0.92rem', color: 'var(--text-primary)', margin: 0, fontWeight: '700' }}>
-                      Option A: Connect to Local Power BI Desktop
-                    </h4>
-                    <span className="badge" style={{ fontSize: '0.7rem', background: !bridgeStatus.isOffline ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)', color: !bridgeStatus.isOffline ? '#34d399' : 'var(--text-muted)' }}>
-                      {!bridgeStatus.isOffline ? '● Local Gateway Online' : '○ Local Gateway Offline'}
+              {/* View 1: 100% Cloud Fabric XMLA Connection */}
+              {settingsMode === 'fabric' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                        <Cloud size={22} style={{ color: '#38bdf8' }} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          Microsoft Fabric &amp; Power BI Premium XMLA Endpoint
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          Query enterprise cloud semantic models on any device (Windows, Mac, iPad, iPhone, Android) with zero desktop software or local proxies.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="badge" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                      ☁️ Zero Local Software Required
                     </span>
                   </div>
-                  
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                    Discovered active Analysis Services database ports running on your Windows PC. Conversational queries execute against your local in-memory VertiPaq engine.
-                  </p>
 
-                  {!bridgeStatus.isOffline ? (
-                    localInstances.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                        {localInstances.map((inst: any) => (
-                          <div 
-                            key={inst.port} 
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.8rem' }}
-                          >
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                              <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{inst.name || 'Untitled Model'}</span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Local Server Port: localhost:{inst.port}</span>
-                            </div>
-                            <button 
-                              className="btn btn-primary" 
-                              disabled={isConnecting}
-                              onClick={() => handleConnectLocal(inst.port, inst.name)}
-                              style={{ padding: '0.35rem 0.8rem', fontSize: '0.75rem', borderRadius: '4px' }}
-                            >
-                              {isConnecting ? 'Connecting...' : 'Connect'}
-                            </button>
+                  {fabricConnectionState?.isConnected && (
+                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '12px', padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <Zap size={22} style={{ color: '#34d399' }} />
+                        <div>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#34d399' }}>
+                            Connected to Cloud Model: {fabricConnectionState.model}
                           </div>
-                        ))}
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            Workspace: <code>{fabricConnectionState.workspace}</code>
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1rem', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.4 }}>
-                        <AlertCircle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-                        <span>No open Power BI Desktop instances discovered. Open a PBIX file on your PC and click Refresh above to sync.</span>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => {
+                            setCopilotCollapsed(false);
+                            handleTabChange('overview');
+                          }}
+                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.9rem' }}
+                        >
+                          💬 Ask Copilot Questions
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={handleDisconnectFabric}
+                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.9rem', color: '#f87171' }}
+                        >
+                          Disconnect
+                        </button>
                       </div>
-                    )
-                  ) : (
-                    <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '8px', padding: '1.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fbbf24', fontWeight: 600, marginBottom: '0.35rem' }}>
-                        <AlertCircle size={15} />
-                        <span>Local Bridge Not Connected</span>
-                      </div>
-                      To query Power BI Desktop running on your Windows computer, run <code style={{ color: 'var(--primary)' }}>node server.cjs</code> and expose it with a tunnel, or run the frontend locally at <code style={{ color: 'var(--primary)' }}>http://localhost:5173</code>.
                     </div>
                   )}
-                </div>
 
-                {/* Option B: Connect to Fabric XMLA (100% Cloud Enterprise) */}
-                <form onSubmit={handleConnectFabric} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', borderLeft: '1px dashed var(--glass-border)', paddingLeft: '2rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem' }}>
-                    <h4 style={{ fontSize: '0.92rem', color: 'var(--text-primary)', margin: 0, fontWeight: '700' }}>
-                      Option B: Microsoft Fabric XMLA Endpoint
-                    </h4>
-                    <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(99, 102, 241, 0.15)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-                      ☁️ 100% Cloud Enterprise
-                    </span>
-                  </div>
+                  <form onSubmit={handleConnectFabric} style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1.5rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Configure Cloud Semantic Model Connection
+                      </h4>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setFabricWorkspace('powerbi://api.powerbi.com/v1.0/myorg/SalesAnalytics_Production');
+                          setFabricModel('Global_Sales_Enterprise_Model');
+                        }}
+                        style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+                      >
+                        ✨ Fill Sample Enterprise Workspace
+                      </button>
+                    </div>
 
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                    Query enterprise cloud semantic models in Power BI Service / Fabric on any device (Windows, Mac, iPad, iPhone, Android) with <strong>zero local software or desktop dependencies</strong>.
-                  </p>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1.25rem', borderRadius: '10px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        Workspace Connection (XMLA Endpoint)
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <label style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Link size={14} style={{ color: '#38bdf8' }} />
+                        Workspace Connection (XMLA Endpoint URL)
                       </label>
                       <input 
                         type="text" 
@@ -963,12 +971,17 @@ export default function App() {
                         placeholder="powerbi://api.powerbi.com/v1.0/myorg/YourWorkspaceName" 
                         value={fabricWorkspace}
                         onChange={(e) => setFabricWorkspace(e.target.value)}
-                        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontSize: '0.8rem', height: '36px', width: '100%', padding: '0 0.75rem', color: 'white' }}
+                        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', fontSize: '0.85rem', height: '42px', width: '100%', padding: '0 0.85rem', color: 'white' }}
+                        required
                       />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Format: <code>powerbi://api.powerbi.com/v1.0/myorg/&lt;WorkspaceName&gt;</code>
+                      </span>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <label style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Database size={14} style={{ color: '#a78bfa' }} />
                         Semantic Model / Dataset Name
                       </label>
                       <input 
@@ -977,27 +990,186 @@ export default function App() {
                         placeholder="e.g. Sales_Analytics_Model or YourDatasetName" 
                         value={fabricModel}
                         onChange={(e) => setFabricModel(e.target.value)}
-                        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontSize: '0.8rem', height: '36px', width: '100%', padding: '0 0.75rem', color: 'white' }}
+                        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', fontSize: '0.85rem', height: '42px', width: '100%', padding: '0 0.85rem', color: 'white' }}
+                        required
                       />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Enter the exact name of the Semantic Model published in this workspace.
+                      </span>
                     </div>
-
-                    {fabricConnectionState && fabricConnectionState.isConnected && (
-                      <div style={{ fontSize: '0.75rem', color: '#34d399', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '0.4rem 0.65rem', borderRadius: '6px' }}>
-                        ✓ Active Fabric Model: <strong>{fabricConnectionState.model}</strong> ({fabricConnectionState.workspace})
-                      </div>
-                    )}
 
                     <button 
                       type="submit" 
                       className="btn btn-primary" 
                       disabled={isConnecting || !fabricWorkspace.trim() || !fabricModel.trim()}
-                      style={{ fontSize: '0.82rem', padding: '0.5rem', width: '100%', height: '38px', marginTop: '0.25rem', fontWeight: 600 }}
+                      style={{ fontSize: '0.9rem', padding: '0.65rem', width: '100%', height: '44px', fontWeight: 700, borderRadius: '8px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', border: '1px solid #38bdf8', boxShadow: '0 0 15px rgba(56, 189, 248, 0.25)' }}
                     >
                       {isConnecting ? 'Establishing Secure Connect...' : 'Connect to Fabric Model'}
                     </button>
+                  </form>
+
+                  {/* Where to find XMLA guide */}
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--glass-border)', padding: '1.25rem', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Sparkles size={15} />
+                      How to find your Workspace XMLA Endpoint in Power BI / Microsoft Fabric
+                    </h4>
+                    <ol style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.4rem', lineHeight: 1.5 }}>
+                      <li>Open <strong>Power BI Service</strong> or <strong>Microsoft Fabric</strong> (<a href="https://app.powerbi.com" target="_blank" rel="noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline' }}>app.powerbi.com</a>).</li>
+                      <li>Navigate to your Workspace, click <strong>Workspace Settings</strong> (gear icon at the top right).</li>
+                      <li>Select the <strong>Premium</strong> or <strong>Fabric Capacity</strong> tab.</li>
+                      <li>Scroll down to <strong>Workspace Connection</strong> and click <strong>Copy</strong> (it starts with <code>powerbi://api.powerbi.com/v1.0/myorg/...</code>).</li>
+                      <li>Paste the copied URL above, type your Dataset / Semantic Model name, and click <strong>Connect to Fabric Model</strong>!</li>
+                    </ol>
                   </div>
-                </form>
-              </div>
+                </div>
+              ) : (
+                /* View 2: Local Power BI Desktop Bridge */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <Link size={20} style={{ color: bridgeStatus.isConnected ? 'var(--success)' : 'var(--primary)' }} />
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                        {bridgeStatus.isConnected ? `Bridge Status: Connected to ${bridgeStatus.connectionName}` : 'Power BI Local Gateway Bridge'}
+                      </h3>
+                      {bridgeStatus.isConnected && (
+                        <span className="pbi-badge" style={{ background: 'var(--success-glow)', border: '1px solid var(--success)', color: 'var(--success)', textShadow: 'none', boxShadow: 'none', padding: '0.1rem 0.5rem', fontSize: '0.7rem' }}>ACTIVE CONNECTION</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {bridgeStatus.isOffline && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <AlertCircle size={14} />
+                          Express Proxy Offline (Run node server.cjs)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dynamic Gateway URL Configuration for Any Visitor */}
+                  <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1.25rem', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Zap size={14} style={{ color: 'var(--secondary)' }} />
+                        MCP Gateway Endpoint URL
+                      </label>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => handleSaveGateway(LIVE_TUNNEL_URL)}
+                          style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', height: '26px' }}
+                          title="Auto-fill the live Cloudflare tunnel"
+                        >
+                          ⚡ Auto-Fill Active Cloudflare Tunnel
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={handleResetGateway}
+                          style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', height: '26px' }}
+                          title="Clear saved localStorage and restore default"
+                        >
+                          🔄 Reset Default
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        className="chat-text-input"
+                        placeholder="https://your-tunnel.trycloudflare.com or http://localhost:3001"
+                        value={customGatewayUrl}
+                        onChange={(e) => setCustomGatewayUrl(e.target.value)}
+                        style={{ flex: 1, minWidth: '280px', background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontSize: '0.8rem', padding: '0.4rem 0.75rem', color: 'white' }}
+                      />
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => handleSaveGateway()}
+                        style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', borderRadius: '6px' }}
+                      >
+                        Save &amp; Connect
+                      </button>
+                    </div>
+
+                    {gatewayStatusMsg && (
+                      <div style={{
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        background: gatewayStatusMsg.type === 'success' 
+                          ? 'rgba(16, 185, 129, 0.15)' 
+                          : (gatewayStatusMsg.type === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(99, 102, 241, 0.15)'),
+                        border: gatewayStatusMsg.type === 'success'
+                          ? '1px solid rgba(16, 185, 129, 0.3)'
+                          : (gatewayStatusMsg.type === 'error' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)'),
+                        color: gatewayStatusMsg.type === 'success' ? '#34d399' : (gatewayStatusMsg.type === 'error' ? '#f87171' : '#a5b4fc')
+                      }}>
+                        {gatewayStatusMsg.text}
+                      </div>
+                    )}
+
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                      💡 <strong>Important Note:</strong> Because this deployed app is served over secure <strong>HTTPS</strong>, web browsers block insecure <code>http://localhost:3001</code> (Mixed Content). To query your local Power BI Desktop, enter an HTTPS tunnel URL (e.g. Cloudflare Tunnel or ngrok) above, or run the frontend locally at <code>http://localhost:5173</code>.
+                    </p>
+                  </div>
+
+                  {/* Discovered Local Desktop Instances */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h4 style={{ fontSize: '0.92rem', color: 'var(--text-primary)', margin: 0, fontWeight: '700' }}>
+                        Local Power BI Desktop Instances
+                      </h4>
+                      <span className="badge" style={{ fontSize: '0.7rem', background: !bridgeStatus.isOffline ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)', color: !bridgeStatus.isOffline ? '#34d399' : 'var(--text-muted)' }}>
+                        {!bridgeStatus.isOffline ? '● Local Gateway Online' : '○ Local Gateway Offline'}
+                      </span>
+                    </div>
+                    
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                      Discovered active Analysis Services database ports running on your Windows PC. Conversational queries execute against your local in-memory VertiPaq engine.
+                    </p>
+
+                    {!bridgeStatus.isOffline ? (
+                      localInstances.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {localInstances.map((inst: any) => (
+                            <div 
+                              key={inst.port} 
+                              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.8rem' }}
+                            >
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{inst.name || 'Untitled Model'}</span>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Local Server Port: localhost:{inst.port}</span>
+                              </div>
+                              <button 
+                                className="btn btn-primary" 
+                                disabled={isConnecting}
+                                onClick={() => handleConnectLocal(inst.port, inst.name)}
+                                style={{ padding: '0.35rem 0.8rem', fontSize: '0.75rem', borderRadius: '4px' }}
+                              >
+                                {isConnecting ? 'Connecting...' : 'Connect'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1rem', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.4 }}>
+                          <AlertCircle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+                          <span>No open Power BI Desktop instances discovered. Open a PBIX file on your PC and click Refresh above to sync.</span>
+                        </div>
+                      )
+                    ) : (
+                      <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '8px', padding: '1.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fbbf24', fontWeight: 600, marginBottom: '0.35rem' }}>
+                          <AlertCircle size={15} />
+                          <span>Local Bridge Not Connected</span>
+                        </div>
+                        To query Power BI Desktop running on your Windows computer, run <code style={{ color: 'var(--primary)' }}>node server.cjs</code> and expose it with a tunnel, or run the frontend locally at <code style={{ color: 'var(--primary)' }}>http://localhost:5173</code>.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
 
