@@ -16,7 +16,7 @@ const MCP_PATH = 'C:\\Users\\harsh\\Downloads\\analysis-services.powerbi-modelin
 
 // ─── Google Gemini Client Configuration ──────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const MODEL = (process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim();
 
 const openai = GEMINI_API_KEY ? new OpenAI({
   apiKey: GEMINI_API_KEY,
@@ -261,8 +261,14 @@ async function executeDax(daxQuery) {
 
 // ─── GPT DAX Generator ───────────────────────────────────────────────────────
 async function generateDaxWithGPT(question, schema) {
+  // Filter out internal hidden date tables to keep schema clean and focused on user data
+  const userTables = schema.tables.filter(t => 
+    !t.name.startsWith('LocalDateTable_') && 
+    !t.name.startsWith('DateTableTemplate_')
+  );
+
   // Build schema representation for all tables
-  const tablesSummary = schema.tables.map(t => {
+  const tablesSummary = (userTables.length > 0 ? userTables : schema.tables).map(t => {
     const cols = t.columns.map(c => `    [${c.name}] (${c.dataType})`).join('\n');
     return `Table: '${t.name}'\n${cols || '    (no columns)'}`;
   }).join('\n\n');
@@ -325,15 +331,31 @@ Respond with a single, pure JSON object (no markdown formatting, no code blocks)
 
   console.log('[Gemini] Generating DAX for:', question);
 
-  const response = await openai.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    temperature: 0.1,
-    max_tokens: 3000
-  });
+  let response;
+  let attempts = 0;
+  while (attempts < 3) {
+    try {
+      attempts++;
+      response = await openai.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 8000,
+        response_format: { type: 'json_object' }
+      });
+      break;
+    } catch (err) {
+      if ((err.status === 429 || String(err.message).includes('429')) && attempts < 3) {
+        console.log(`[Gemini] Rate limit hit (429). Retrying attempt ${attempts + 1} after 3s...`);
+        await new Promise(r => setTimeout(r, 3000));
+      } else {
+        throw err;
+      }
+    }
+  }
 
   const content = response.choices[0].message.content.trim();
   console.log('[GPT] Raw response:', content);
