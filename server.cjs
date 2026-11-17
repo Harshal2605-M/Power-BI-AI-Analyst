@@ -1,0 +1,745 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const net = require('net');
+const { OpenAI } = require('openai');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 3001;
+const MCP_PATH = 'C:\\Users\\harsh\\Downloads\\analysis-services.powerbi-modeling-mcp-0.1.9@win32-x64\\extension\\server\\powerbi-modeling-mcp.exe';
+
+// ─── Google Gemini Client Configuration ──────────────────────────────────────
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+const openai = GEMINI_API_KEY ? new OpenAI({
+  apiKey: GEMINI_API_KEY,
+  baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
+}) : null;
+
+// ─── Schema Cache ────────────────────────────────────────────────────────────
+let schemaCache = null;
+let schemaCacheTime = 0;
+const SCHEMA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// ─── MCP Bridge ─────────────────────────────────────────────────────────────
+class McpBridge {
+  constructor() {
+    this.child = null;
+    this.buffer = '';
+    this.callbacks = new Map();
+    this.requestId = 0;
+    this.activeConnection = null;
+    this.connectedDataSource = null;
+    this.queue = [];
+    this.isProcessing = false;
+    this.startServer();
+  }
+
+  startServer() {
+    console.log(`Spawning MCP server: ${MCP_PATH}`);
+    this.child = spawn(MCP_PATH, ['--start']);
+
+    this.child.stdout.on('data', (data) => {
+      this.buffer += data.toString();
+      this.processBuffer();
+    });
+
+    this.child.stderr.on('data', (data) => {
+      console.error('[MCP Server Error]:', data.toString().trim());
+    });
+
+    this.child.on('error', (err) => {
+      console.error('[MCP Process Error]:', err);
+    });
+
+    this.child.on('close', (code) => {
+      console.log(`MCP server closed with code ${code}. Restarting...`);
+      this.activeConnection = null;
+      schemaCache = null; // Invalidate schema cache on disconnect
+      setTimeout(() => this.startServer(), 2000);
+    });
+  }
+
+  processBuffer() {
+    const lines = this.buffer.split('\n');
+    this.buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const message = JSON.parse(line.trim());
+        if (message.id !== undefined && this.callbacks.has(message.id)) {
+          const { resolve, reject } = this.callbacks.get(message.id);
+          this.callbacks.delete(message.id);
+          if (message.error) reject(message.error);
+          else resolve(message.result);
+        }
+      } catch (err) {}
+    }
+  }
+
+  callTool(toolName, args = {}) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ toolName, args, resolve, reject });
+      this.processQueue();
+    });
+  }
+
+  async processQueue() {
+    if (this.isProcessing || this.queue.length === 0) return;
+    this.isProcessing = true;
+
+    const { toolName, args, resolve, reject } = this.queue.shift();
+
+    try {
+      this.requestId++;
+      const id = this.requestId;
+
+      const responsePromise = new Promise((res, rej) => {
+        this.callbacks.set(id, { resolve: res, reject: rej });
+        setTimeout(() => {
+          if (this.callbacks.has(id)) {
+            this.callbacks.delete(id);
+            rej(new Error('JSON-RPC Request Timeout after 30 seconds'));
+          }
+        }, 30000);
+      });
+
+      const request = {
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { name: toolName, arguments: args },
+        id
+      };
+
+      console.log(`[JSON-RPC Outbound]: Calling tool "${toolName}" (Request ID: ${id})`);
+      this.child.stdin.write(JSON.stringify(request) + '\n');
+
+      const result = await responsePromise;
+      resolve(result);
+    } catch (err) {
+      reject(err);
+    } finally {
+      this.isProcessing = false;
+      setTimeout(() => this.processQueue(), 5);
+    }
+  }
+}
+
+const bridge = new McpBridge();
+
+// ─── Schema Fetcher ──────────────────────────────────────────────────────────
+async function fetchFullSchema() {
+  const now = Date.now();
+  if (schemaCache && (now - schemaCacheTime) < SCHEMA_CACHE_TTL_MS) {
+    return schemaCache;
+  }
+
+  console.log('[Schema] Fetching full schema from live model...');
+  const schema = { tables: [], measures: [] };
+
+  try {
+    // 1. List all tables
+    const tablesResult = await bridge.callTool('table_operations', { request: { operation: 'List' } });
+    const tablesPayload = JSON.parse(tablesResult.content[0].text);
+    const tablesArray = tablesPayload.data || tablesPayload.tables || [];
+
+    // 2. For each table, fetch columns
+    for (const tbl of tablesArray) {
+      try {
+        const colResult = await bridge.callTool('column_operations', {
+          request: { operation: 'List', tableName: tbl.name }
+        });
+        const colPayload = JSON.parse(colResult.content[0].text);
+        const tableObj = colPayload.data?.[0] || colPayload;
+        const cols = (tableObj.columns || []).map(c => ({ name: c.name, dataType: c.dataType || 'Text' }));
+        schema.tables.push({ name: tbl.name, columns: cols });
+      } catch (e) {
+        schema.tables.push({ name: tbl.name, columns: [] });
+      }
+    }
+
+    // 3. Fetch all measures from "All Measures" table
+    let rawMeasures = [];
+    const extractMeasures = (payload) => {
+      if (!payload) return [];
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload.data)) {
+        if (payload.data.length > 0 && payload.data[0].name && !payload.data[0].measures) {
+          return payload.data;
+        }
+        const first = payload.data[0];
+        if (first && Array.isArray(first.measures)) return first.measures;
+        if (first && Array.isArray(first.items)) return first.items;
+      }
+      if (Array.isArray(payload.measures)) return payload.measures;
+      if (Array.isArray(payload.items)) return payload.items;
+      return [];
+    };
+
+    try {
+      const measResult = await bridge.callTool('measure_operations', {
+        request: { operation: 'List', tableName: 'All Measures' }
+      });
+      const measPayload = JSON.parse(measResult.content[0].text);
+      rawMeasures = extractMeasures(measPayload);
+    } catch (e) {
+      // Fallback: try without table name
+      try {
+        const measResult = await bridge.callTool('measure_operations', {
+          request: { operation: 'List' }
+        });
+        const measPayload = JSON.parse(measResult.content[0].text);
+        rawMeasures = extractMeasures(measPayload);
+      } catch (e2) {}
+    }
+    schema.measures = rawMeasures.map(m => ({ name: m.name, description: m.description || '' }));
+
+    schemaCache = schema;
+    schemaCacheTime = now;
+    console.log(`[Schema] Cached: ${schema.tables.length} tables, ${schema.measures.length} measures`);
+    return schema;
+  } catch (err) {
+    console.error('[Schema] Failed to fetch schema:', err.message);
+    return schemaCache || { tables: [], measures: [] };
+  }
+}
+
+// ─── DAX Execution Helper ────────────────────────────────────────────────────
+async function executeDax(daxQuery) {
+  const result = await bridge.callTool('dax_query_operations', {
+    request: {
+      operation: 'Execute',
+      query: daxQuery,
+      executionMetricsOnly: false,
+      getExecutionMetrics: true
+    }
+  });
+
+  if (result && result.content && result.content[0]) {
+    const payload = JSON.parse(result.content[0].text);
+    const dataObj = payload.data || payload;
+    if (dataObj && dataObj.rows) {
+        // Helper to normalize column names:
+        // 1. Strip square brackets: [ColName] → ColName
+        // 2. Strip table prefix: Table[ColName] → ColName  
+        // 3. Strip quoted table prefix: 'Table'[ColName] → ColName
+        const cleanKey = (key) => {
+          if (typeof key !== 'string') return key;
+          // Remove outer square brackets: [Name] → Name
+          let k = key.trim();
+          if (k.startsWith('[') && k.endsWith(']')) k = k.slice(1, -1);
+          // Remove table prefix: Table[Name] → Name or 'Table'[Name] → Name
+          const bracketIdx = k.lastIndexOf('[');
+          if (bracketIdx > 0 && k.endsWith(']')) {
+            k = k.slice(bracketIdx + 1, -1);
+          }
+          return k;
+        };
+      const cleanedRows = dataObj.rows.map(row => {
+        const cleaned = {};
+        for (const [k, v] of Object.entries(row)) cleaned[cleanKey(k)] = v;
+        return cleaned;
+      });
+
+      return {
+        columns: cleanedRows.length > 0 ? Object.keys(cleanedRows[0]) : [],
+        rows: cleanedRows,
+        executionTimeMs: payload.executionMetrics?.durationMs || 10
+      };
+    }
+  }
+  throw new Error('No data returned from DAX execution');
+}
+
+// ─── GPT DAX Generator ───────────────────────────────────────────────────────
+async function generateDaxWithGPT(question, schema) {
+  // Build schema representation for all tables
+  const tablesSummary = schema.tables.map(t => {
+    const cols = t.columns.map(c => `    [${c.name}] (${c.dataType})`).join('\n');
+    return `Table: '${t.name}'\n${cols || '    (no columns)'}`;
+  }).join('\n\n');
+
+  // Build schema representation for all measures including their descriptions
+  const measuresSummary = schema.measures.map(m =>
+    `  Measure Name: [${m.name}]\n  Description: ${m.description || 'Calculates ' + m.name}`
+  ).join('\n\n');
+
+  const systemPrompt = `You are an expert Power BI DAX AI Analyst. You generate mathematically correct, highly accurate, and valid DAX queries to answer business and analytical questions based on the user's active Power BI semantic model.
+
+LIVE MODEL SCHEMA:
+==================
+${tablesSummary}
+
+AVAILABLE MODEL MEASURES:
+=========================
+${measuresSummary || '  (No pre-built measures found; generate calculations directly from table columns using SUM, COUNT, AVERAGE, etc.)'}
+
+CRITICAL DAX DESIGN PRINCIPLES:
+===============================
+1. STRICT SCHEMA ADHERENCE:
+   - ONLY reference table names, column names, and measures that strictly exist in the LIVE MODEL SCHEMA above.
+   - Do NOT invent or hallucinate table names or columns.
+   - Always enclose table names in single quotes: 'TableName'[ColumnName].
+   - Always reference measures as [MeasureName].
+
+2. VALID DAX QUERY STRUCTURE:
+   - Every DAX query must start with EITHER "DEFINE" (if defining VARs) OR "EVALUATE" (if no VARs).
+   - If using variables, start with DEFINE, declare VARs, and then write EVALUATE.
+   - NEVER start with EVALUATE followed immediately by VAR.
+   - NEVER use the EVALUATE keyword more than once.
+   - Return a table expression after EVALUATE (e.g. SUMMARIZECOLUMNS, TOPN, FILTER, ROW, ADDCOLUMNS, etc.).
+
+3. AGGREGATIONS & GROUPING:
+   - Prefer SUMMARIZECOLUMNS for group-by operations.
+   - When returning a single scalar or summary KPI row, use EVALUATE ROW("MetricName", <calculation>).
+   - Use TOPN(N, Table, [Metric], DESC) when the user asks for "top N", "highest", "best", etc.
+   - Avoid duplicate column names or aliases in SUMMARIZECOLUMNS.
+
+4. SAFE EXPRESSIONS:
+   - Analysis Services forbids using CALCULATE directly inside boolean filter arguments of another CALCULATE or SUMMARIZECOLUMNS.
+   - To compute max/min dates or baselines, declare them as VARs under DEFINE.
+   - Use DIVIDE(Numerator, Denominator, 0) to avoid division by zero errors.
+
+OUTPUT FORMAT:
+==============
+Respond with a single, pure JSON object (no markdown formatting, no code blocks):
+{
+  "dax": "<the complete DAX query>",
+  "explanation": "<one sentence description of what this query computes>",
+  "suggestions": [
+    "<relevant follow-up question 1 based on the actual model tables>",
+    "<relevant follow-up question 2 based on the actual model tables>",
+    "<relevant follow-up question 3 based on the actual model tables>"
+  ]
+}`;
+
+  const userPrompt = `Generate a DAX query to answer this question: "${question}"`;
+
+  console.log('[Gemini] Generating DAX for:', question);
+
+  const response = await openai.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.1,
+    max_tokens: 3000
+  });
+
+  const content = response.choices[0].message.content.trim();
+  console.log('[GPT] Raw response:', content);
+
+  // Parse JSON response from GPT
+  let parsed;
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      parsed = JSON.parse(jsonMatch[0]);
+    } else {
+      throw new Error('No JSON object found in GPT response');
+    }
+  } catch (e) {
+    throw new Error(`GPT returned invalid JSON: ${content.substring(0, 200)}`);
+  }
+
+  if (!parsed.dax) {
+    throw new Error('GPT response missing "dax" field');
+  }
+
+  return { 
+    dax: parsed.dax.trim(), 
+    explanation: parsed.explanation || '', 
+    suggestions: parsed.suggestions || []
+  };
+}
+
+// ─── Local Instance Discovery (Supports both Store App and MSI PowerBI) ──────
+function checkPortAlive(port) {
+  return new Promise((resolve) => {
+    const s = net.createConnection({ port, host: '127.0.0.1' }, () => {
+      s.destroy();
+      resolve(true);
+    });
+    s.setTimeout(800, () => {
+      s.destroy();
+      resolve(false);
+    });
+    s.on('error', () => {
+      resolve(false);
+    });
+  });
+}
+
+async function discoverAllLocalInstances() {
+  const instances = [];
+  const seenPorts = new Set();
+
+  // 1. Try MCP built-in ListLocalInstances first (works for standard MSI installers)
+  try {
+    const result = await bridge.callTool('connection_operations', {
+      request: { operation: 'ListLocalInstances' }
+    });
+    if (result && result.content && result.content[0]) {
+      const payload = JSON.parse(result.content[0].text);
+      const mcpInstances = payload.data || payload.instances || payload.localInstances || [];
+      for (const inst of mcpInstances) {
+        if (inst && inst.port) {
+          const p = Number(inst.port);
+          seenPorts.add(p);
+          instances.push({
+            port: p,
+            name: inst.name || inst.parentWindowTitle || `Power BI Desktop (Port ${p})`,
+            parentWindowTitle: inst.parentWindowTitle || 'Power BI Desktop'
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Discovery] MCP ListLocalInstances check failed:', e.message);
+  }
+
+  // 2. Scan Microsoft Store App and classic Desktop AnalysisServicesWorkspaces directories
+  const candidateDirs = [
+    path.join(process.env.USERPROFILE || '', 'Microsoft', 'Power BI Desktop Store App', 'AnalysisServicesWorkspaces'),
+    path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'Power BI Desktop', 'AnalysisServicesWorkspaces'),
+    path.join(process.env.LOCALAPPDATA || '', 'Packages', 'Microsoft.MicrosoftPowerBIDesktop_8wekyb3d8bbwe', 'LocalCache', 'Microsoft', 'Power BI Desktop', 'AnalysisServicesWorkspaces')
+  ];
+
+  for (const baseDir of candidateDirs) {
+    if (!fs.existsSync(baseDir)) continue;
+    try {
+      const folders = fs.readdirSync(baseDir);
+      for (const folder of folders) {
+        const portFilePath = path.join(baseDir, folder, 'Data', 'msmdsrv.port.txt');
+        if (fs.existsSync(portFilePath)) {
+          try {
+            const raw = fs.readFileSync(portFilePath);
+            const port = parseInt(raw.toString('utf16le').trim(), 10);
+            if (port && !isNaN(port) && !seenPorts.has(port)) {
+              const isAlive = await checkPortAlive(port);
+              if (isAlive) {
+                seenPorts.add(port);
+                instances.push({
+                  port: port,
+                  name: `Power BI Desktop (Port ${port})`,
+                  parentWindowTitle: 'Power BI Desktop'
+                });
+              }
+            }
+          } catch (err) {
+            // Ignore unreadable port file
+          }
+        }
+      }
+    } catch (dirErr) {
+      // Ignore directory read error
+    }
+  }
+
+  return instances;
+}
+
+// ─── Express API Routes ──────────────────────────────────────────────────────
+
+app.get('/api/status', async (req, res) => {
+  try {
+    let instances = [];
+    try {
+      instances = await discoverAllLocalInstances();
+    } catch (e) {
+      console.error('[Status check] Failed to list instances:', e.message);
+    }
+
+    // Check if currently connected port is still alive
+    if (bridge.connectedDataSource) {
+      const portMatch = bridge.connectedDataSource.match(/:(\d+)$/);
+      const currentPort = portMatch ? parseInt(portMatch[1], 10) : null;
+      const isAlive = instances.some(inst => inst.port === currentPort);
+
+      if (!isAlive) {
+        console.log(`[Status check] Connected instance on port ${currentPort} is no longer running. Clearing connection.`);
+        bridge.activeConnection = null;
+        bridge.connectedDataSource = null;
+        schemaCache = null;
+      }
+    }
+
+    // Auto-connect if not connected and there is at least one instance
+    if (!bridge.activeConnection && instances.length >= 1) {
+      const target = instances[0];
+      const ds = `localhost:${target.port}`;
+      console.log(`[Status check] Auto-connecting to discovered instance: ${target.name || ds}`);
+      try {
+        const connResult = await bridge.callTool('connection_operations', {
+          request: {
+            operation: 'Connect',
+            connectionString: `Provider=MSOLAP;Data Source=${ds}`
+          }
+        });
+        if (connResult && connResult.content && connResult.content[0]) {
+          const connInfo = JSON.parse(connResult.content[0].text);
+          bridge.activeConnection = connInfo.data || connInfo.connectionName || target.name || 'Local Connection';
+        } else {
+          bridge.activeConnection = target.name || 'Local Connection';
+        }
+        bridge.connectedDataSource = ds;
+        console.log(`[Status check] Connected successfully to: ${bridge.activeConnection}`);
+        fetchFullSchema().catch(e => console.error('[Schema warmup error]', e.message));
+      } catch (connErr) {
+        console.error('[Status check] Auto-connect failed:', connErr.message);
+      }
+    }
+
+    res.json({
+      status: bridge.child ? 'running' : 'stopped',
+      activeConnection: bridge.activeConnection,
+      connectedDataSource: bridge.connectedDataSource,
+      serverExecutable: MCP_PATH,
+      aiEnabled: !!openai
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/instances', async (req, res) => {
+  try {
+    const instances = await discoverAllLocalInstances();
+    res.json({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            message: `Found ${instances.length} local PowerBI Desktop and Analysis Services instances`,
+            operation: 'ListLocalInstances',
+            data: instances
+          })
+        }
+      ]
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/connect', async (req, res) => {
+  const { dataSource } = req.body;
+  if (!dataSource) return res.status(400).json({ error: 'dataSource parameter is required' });
+
+  try {
+    console.log(`Connecting to local data source: ${dataSource}`);
+    const result = await bridge.callTool('connection_operations', {
+      request: {
+        operation: 'Connect',
+        connectionString: `Provider=MSOLAP;Data Source=${dataSource}`
+      }
+    });
+
+    if (result && result.content && result.content[0]) {
+      const connInfo = JSON.parse(result.content[0].text);
+      bridge.activeConnection = connInfo.data || connInfo.connectionName || 'Local Connection';
+    } else {
+      bridge.activeConnection = 'Local Connection';
+    }
+    bridge.connectedDataSource = dataSource;
+
+    // Immediately warm-up the schema cache after connecting
+    fetchFullSchema().catch(e => console.error('[Schema warmup error]', e.message));
+
+    res.json({ success: true, activeConnection: bridge.activeConnection, details: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/connect-fabric', async (req, res) => {
+  const { workspaceName, semanticModelName } = req.body;
+  if (!workspaceName || !semanticModelName) {
+    return res.status(400).json({ error: 'workspaceName and semanticModelName are required' });
+  }
+
+  try {
+    const result = await bridge.callTool('connection_operations', {
+      request: { operation: 'ConnectFabric', workspaceName, semanticModelName }
+    });
+
+    if (result && result.content && result.content[0]) {
+      const connInfo = JSON.parse(result.content[0].text);
+      bridge.activeConnection = connInfo.connectionName || `${workspaceName} - ${semanticModelName}`;
+    } else {
+      bridge.activeConnection = `${workspaceName} - ${semanticModelName}`;
+    }
+
+    fetchFullSchema().catch(e => console.error('[Schema warmup error]', e.message));
+    res.json({ success: true, activeConnection: bridge.activeConnection, details: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/tables', async (req, res) => {
+  try {
+    const result = await bridge.callTool('table_operations', { request: { operation: 'List' } });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/measures', async (req, res) => {
+  const { tableName } = req.query;
+  try {
+    const result = await bridge.callTool('measure_operations', {
+      request: { operation: 'List', tableName: tableName || 'All Measures' }
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/columns', async (req, res) => {
+  const { tableName } = req.query;
+  if (!tableName) return res.status(400).json({ error: 'tableName parameter is required' });
+  try {
+    const result = await bridge.callTool('column_operations', {
+      request: { operation: 'List', tableName }
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/schema — Expose full cached schema to the frontend
+app.get('/api/schema', async (req, res) => {
+  if (!bridge.activeConnection) {
+    return res.status(503).json({ error: 'Not connected to any Power BI model' });
+  }
+  try {
+    const schema = await fetchFullSchema();
+    res.json(schema);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/query — Direct DAX execution (used by frontend DAX console)
+app.post('/api/query', async (req, res) => {
+  const { query } = req.body;
+  if (!query) return res.status(400).json({ error: 'DAX query parameter is required' });
+
+  try {
+    const result = await executeDax(query);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ask — LLM-powered question answering (main AI endpoint)
+app.post('/api/ask', async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ error: 'question parameter is required' });
+
+  if (!bridge.activeConnection) {
+    return res.status(503).json({
+      error: 'Not connected to any Power BI model. Please connect first.',
+      offline: true
+    });
+  }
+
+  try {
+    // 1. Fetch live schema (cached)
+    const schema = await fetchFullSchema();
+
+    if (schema.tables.length === 0) {
+      return res.status(503).json({ error: 'Schema not yet available. Please retry in a moment.' });
+    }
+
+    // 2. Ask GPT to generate DAX
+    const { dax, explanation, suggestions } = await generateDaxWithGPT(question, schema);
+    console.log('[DAX Generated by GPT]:\n', dax);
+
+    // 3. Execute the GPT-generated DAX against the live model
+    let queryResult;
+    try {
+      queryResult = await executeDax(dax);
+    } catch (execErr) {
+      // GPT produced invalid DAX — return the error with the DAX for debugging
+      return res.status(200).json({
+        dax,
+        explanation,
+        suggestions: suggestions || [],
+        error: `DAX execution failed: ${execErr.message}`,
+        columns: ['Error'],
+        rows: [{ Error: execErr.message }],
+        executionTimeMs: 0
+      });
+    }
+
+    // 4. Return everything to the frontend
+    res.json({
+      dax,
+      explanation,
+      suggestions: suggestions || [],
+      columns: queryResult.columns,
+      rows: queryResult.rows,
+      executionTimeMs: queryResult.executionTimeMs
+    });
+
+  } catch (err) {
+    console.error('[/api/ask] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`PowerBI MCP Bridge Server running on http://localhost:${PORT}`);
+  const aiProvider = openai
+    ? `Google Gemini (${MODEL}) ✓`
+    : 'NOT CONFIGURED ✗ (Set GEMINI_API_KEY in .env)';
+  console.log(`LLM Provider: ${aiProvider}`);
+
+  // Auto-connect to active local PowerBI instances on start
+  setTimeout(async () => {
+    try {
+      console.log('[Auto-Connect] Scanning for active local PowerBI instances...');
+      const instances = await discoverAllLocalInstances();
+      if (instances.length > 0) {
+        const target = instances[0];
+        const ds = `localhost:${target.port}`;
+        console.log(`[Auto-Connect] Found instance: ${target.name || ds}. Triggering auto-connection...`);
+        const connResult = await bridge.callTool('connection_operations', {
+          request: {
+            operation: 'Connect',
+            connectionString: `Provider=MSOLAP;Data Source=${ds}`
+          }
+        });
+        if (connResult && connResult.content && connResult.content[0]) {
+          const connInfo = JSON.parse(connResult.content[0].text);
+          bridge.activeConnection = connInfo.data || connInfo.connectionName || target.name || 'Local Connection';
+        } else {
+          bridge.activeConnection = target.name || 'Local Connection';
+        }
+        bridge.connectedDataSource = ds;
+        console.log(`[Auto-Connect] Connected successfully to: ${bridge.activeConnection}`);
+        fetchFullSchema().catch(e => console.error('[Schema warmup error]', e.message));
+      } else {
+        console.log('[Auto-Connect] No active local PowerBI instances discovered. Waiting for client to connect.');
+      }
+    } catch (err) {
+      console.error('[Auto-Connect] Failed during startup:', err.message);
+    }
+  }, 3000);
+});

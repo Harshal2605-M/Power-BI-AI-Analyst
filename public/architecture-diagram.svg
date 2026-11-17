@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d" />
+      <stop offset="100%" stop-color="#05070f" />
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+    <linearGradient id="geminiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+    <linearGradient id="mcpGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="pbiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="600" fill="url(#bg)" rx="16" />
+  
+  <!-- Subtle Grid Lines -->
+  <g stroke="rgba(255,255,255,0.03)" stroke-width="1">
+    <line x1="0" y1="100" x2="1000" y2="100" />
+    <line x1="0" y1="200" x2="1000" y2="200" />
+    <line x1="0" y1="300" x2="1000" y2="300" />
+    <line x1="0" y1="400" x2="1000" y2="400" />
+    <line x1="0" y1="500" x2="1000" y2="500" />
+    <line x1="200" y1="0" x2="200" y2="600" />
+    <line x1="400" y1="0" x2="400" y2="600" />
+    <line x1="600" y1="0" x2="600" y2="600" />
+    <line x1="800" y1="0" x2="800" y2="600" />
+  </g>
+
+  <!-- Title Header -->
+  <text x="50" y="55" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="800" fill="#ffffff" letter-spacing="-0.5">
+    Power BI MCP Analyst • Architecture Overview
+  </text>
+  <text x="50" y="80" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#94a3b8">
+    Autonomous Generative BI Copilot bridging Natural Language to Power BI Modeling via MCP
+  </text>
+
+  <!-- Node 1: Frontend Client -->
+  <g transform="translate(50, 130)" filter="url(#shadow)">
+    <rect width="260" height="400" rx="12" fill="#131b2e" stroke="rgba(99, 102, 241, 0.4)" stroke-width="1.5" />
+    <rect width="260" height="40" rx="12" fill="url(#primaryGrad)" />
+    <rect y="28" width="260" height="12" fill="url(#primaryGrad)" />
+    <text x="130" y="25" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">
+      Client Presentation Layer
+    </text>
+    
+    <!-- Sub-boxes -->
+    <rect x="15" y="55" width="230" height="60" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="77" font-family="sans-serif" font-size="12" font-weight="600" fill="#ffffff">React 19 + TypeScript + Vite</text>
+    <text x="25" y="98" font-family="sans-serif" font-size="10" fill="#94a3b8">Deployable to Vercel / Local Host</text>
+
+    <rect x="15" y="125" width="230" height="75" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="147" font-family="sans-serif" font-size="12" font-weight="600" fill="#ffffff">Interactive Visualizer</text>
+    <text x="25" y="167" font-family="sans-serif" font-size="10" fill="#94a3b8">• Dynamic SVG Charts (Bar, Line, Donut)</text>
+    <text x="25" y="185" font-family="sans-serif" font-size="10" fill="#94a3b8">• Searchable High-Volume Data Grid</text>
+
+    <rect x="15" y="210" width="230" height="75" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="232" font-family="sans-serif" font-size="12" font-weight="600" fill="#ffffff">Conversational Copilot UI</text>
+    <text x="25" y="252" font-family="sans-serif" font-size="10" fill="#94a3b8">• Pipeline execution stepper</text>
+    <text x="25" y="270" font-family="sans-serif" font-size="10" fill="#94a3b8">• Contextual drilldown suggestion pills</text>
+
+    <rect x="15" y="295" width="230" height="90" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="317" font-family="sans-serif" font-size="12" font-weight="600" fill="#ffffff">Schema Explorer &amp; DAX Editor</text>
+    <text x="25" y="337" font-family="sans-serif" font-size="10" fill="#94a3b8">• Live table &amp; column inspector</text>
+    <text x="25" y="355" font-family="sans-serif" font-size="10" fill="#94a3b8">• Custom DAX query console</text>
+    <text x="25" y="373" font-family="sans-serif" font-size="10" fill="#94a3b8">• PBI Desktop / Fabric Switcher</text>
+  </g>
+
+  <!-- Connectors from Client to Gateway -->
+  <path d="M 310 330 L 370 330" fill="none" stroke="#6366f1" stroke-width="2" stroke-dasharray="4,4" />
+  <polygon points="368,326 376,330 368,334" fill="#6366f1" />
+  <text x="340" y="320" font-family="sans-serif" font-size="9" fill="#a5b4fc" text-anchor="middle">HTTP / JSON</text>
+  <text x="340" y="345" font-family="sans-serif" font-size="8" fill="#64748b" text-anchor="middle">CORS API</text>
+
+  <!-- Node 2: Express MCP Gateway Server -->
+  <g transform="translate(380, 150)" filter="url(#shadow)">
+    <rect width="250" height="360" rx="12" fill="#131b2e" stroke="rgba(16, 185, 129, 0.4)" stroke-width="1.5" />
+    <rect width="250" height="40" rx="12" fill="url(#mcpGrad)" />
+    <rect y="28" width="250" height="12" fill="url(#mcpGrad)" />
+    <text x="125" y="25" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">
+      Express MCP Gateway Server
+    </text>
+
+    <!-- Sub-boxes -->
+    <rect x="15" y="55" width="220" height="60" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="77" font-family="sans-serif" font-size="12" font-weight="600" fill="#ffffff">Node.js Express Proxy (:3001)</text>
+    <text x="25" y="97" font-family="sans-serif" font-size="10" fill="#94a3b8">REST endpoints (/ask, /query, /tables)</text>
+
+    <rect x="15" y="125" width="220" height="70" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="147" font-family="sans-serif" font-size="12" font-weight="600" fill="#ffffff">Local Port Auto-Discovery</text>
+    <text x="25" y="167" font-family="sans-serif" font-size="10" fill="#94a3b8">Scans Store App &amp; MSI workspaces</text>
+    <text x="25" y="183" font-family="sans-serif" font-size="10" fill="#94a3b8">Reads UTF-16LE msmdsrv.port.txt</text>
+
+    <rect x="15" y="205" width="220" height="65" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="227" font-family="sans-serif" font-size="12" font-weight="600" fill="#ffffff">Schema Warmup Cache</text>
+    <text x="25" y="247" font-family="sans-serif" font-size="10" fill="#94a3b8">Caches all tables &amp; measures in memory</text>
+
+    <rect x="15" y="280" width="220" height="65" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="302" font-family="sans-serif" font-size="12" font-weight="600" fill="#ffffff">JSON-RPC stdio Bridge</text>
+    <text x="25" y="322" font-family="sans-serif" font-size="10" fill="#94a3b8">Manages MCP child process life-cycle</text>
+  </g>
+
+  <!-- Connectors from Gateway to Gemini AI (Top Right) -->
+  <path d="M 505 150 L 505 110 L 710 110 L 710 150" fill="none" stroke="#38bdf8" stroke-width="2" />
+  <polygon points="706,146 710,154 714,146" fill="#38bdf8" />
+  <text x="608" y="103" font-family="sans-serif" font-size="9" fill="#38bdf8" text-anchor="middle">Schema + Prompt Grounding</text>
+
+  <!-- Node 3: Google Gemini AI -->
+  <g transform="translate(680, 150)" filter="url(#shadow)">
+    <rect width="270" height="160" rx="12" fill="#131b2e" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5" />
+    <rect width="270" height="40" rx="12" fill="url(#geminiGrad)" />
+    <rect y="28" width="270" height="12" fill="url(#geminiGrad)" />
+    <text x="135" y="25" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">
+      Google Gemini 2.5 Flash
+    </text>
+
+    <rect x="15" y="55" width="240" height="90" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="77" font-family="sans-serif" font-size="11" font-weight="600" fill="#ffffff">• Zero-Shot DAX Synthesis</text>
+    <text x="25" y="97" font-family="sans-serif" font-size="10" fill="#94a3b8">• Strict schema adherence (no hallucinations)</text>
+    <text x="25" y="115" font-family="sans-serif" font-size="10" fill="#94a3b8">• Business narrative &amp; recommendations</text>
+    <text x="25" y="133" font-family="sans-serif" font-size="10" fill="#94a3b8">• Contextual drilldown suggestions</text>
+  </g>
+
+  <!-- Connectors from Gateway to PowerBI Modeling MCP (Bottom Right) -->
+  <path d="M 630 380 L 680 380" fill="none" stroke="#f59e0b" stroke-width="2" />
+  <polygon points="678,376 686,380 678,384" fill="#f59e0b" />
+  <text x="655" y="372" font-family="sans-serif" font-size="9" fill="#f59e0b" text-anchor="middle">JSON-RPC</text>
+
+  <!-- Node 4: PowerBI Modeling MCP & Engine -->
+  <g transform="translate(680, 330)" filter="url(#shadow)">
+    <rect width="270" height="210" rx="12" fill="#131b2e" stroke="rgba(245, 158, 11, 0.4)" stroke-width="1.5" />
+    <rect width="270" height="40" rx="12" fill="url(#pbiGrad)" />
+    <rect y="28" width="270" height="12" fill="url(#pbiGrad)" />
+    <text x="135" y="25" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">
+      Power BI MCP &amp; Semantic Engine
+    </text>
+
+    <rect x="15" y="55" width="240" height="60" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="77" font-family="sans-serif" font-size="11" font-weight="600" fill="#ffffff">powerbi-modeling-mcp.exe</text>
+    <text x="25" y="97" font-family="sans-serif" font-size="10" fill="#94a3b8">ModelContextProtocol.Server.McpServer</text>
+
+    <rect x="15" y="125" width="240" height="68" rx="6" fill="#0d1424" stroke="rgba(255,255,255,0.06)" />
+    <text x="25" y="145" font-family="sans-serif" font-size="11" font-weight="600" fill="#ffffff">Active Data Engine</text>
+    <text x="25" y="163" font-family="sans-serif" font-size="10" fill="#94a3b8">• Local Desktop (msmdsrv.exe / Port 55997)</text>
+    <text x="25" y="179" font-family="sans-serif" font-size="10" fill="#94a3b8">• Microsoft Fabric XMLA Endpoints</text>
+  </g>
+</svg>
