@@ -24,7 +24,7 @@ import {
 import { daxEngine } from './db/daxEngine';
 import { parseFuzzyQuestion, generateInsights, groundedRepository } from './services/daxGenerator';
 import { askLLM, toDaxResult } from './services/llmService';
-import { getApiBaseUrl, setApiBaseUrl } from './config';
+import { getApiBaseUrl, setApiBaseUrl, clearApiBaseUrl, LIVE_TUNNEL_URL } from './config';
 import { PbixStudio } from './components/PbixStudio';
 import type { PbixParsedData } from './services/pbixParser';
 import type { DaxResult } from './db/daxEngine';
@@ -73,6 +73,58 @@ export default function App() {
   const [fabricModel, setFabricModel] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [customGatewayUrl, setCustomGatewayUrl] = useState(getApiBaseUrl());
+  const [gatewayStatusMsg, setGatewayStatusMsg] = useState<{ type: 'success' | 'error' | 'loading'; text: string } | null>(null);
+
+  const handleSaveGateway = async (urlToSave?: string) => {
+    const targetUrl = (urlToSave !== undefined ? urlToSave : customGatewayUrl).trim().replace(/\/+$/, '');
+    if (!targetUrl) return;
+
+    setGatewayStatusMsg({ type: 'loading', text: `Testing connection to ${targetUrl}...` });
+    setCustomGatewayUrl(targetUrl);
+    setApiBaseUrl(targetUrl);
+
+    try {
+      const res = await fetch(`${targetUrl}/api/status`, {
+        headers: {
+          'Bypass-Tunnel-Reminder': 'true',
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGatewayStatusMsg({ 
+          type: 'success', 
+          text: `✅ Connected! Active Model: ${data.activeConnection || 'Power BI Instance'}` 
+        });
+        syncBridgeStatus();
+      } else {
+        setGatewayStatusMsg({ 
+          type: 'error', 
+          text: `⚠️ Gateway responded with HTTP ${res.status}. Verify server.cjs is running.` 
+        });
+      }
+    } catch (err: any) {
+      const isMixedContent = typeof window !== 'undefined' && window.location.protocol === 'https:' && targetUrl.startsWith('http://');
+      if (isMixedContent) {
+        setGatewayStatusMsg({
+          type: 'error',
+          text: `❌ Mixed Content Blocked: On HTTPS sites (Vercel), browsers block insecure "http://" links. Use an HTTPS tunnel (Cloudflare/ngrok) or run the frontend locally at http://localhost:5173.`
+        });
+      } else {
+        setGatewayStatusMsg({
+          type: 'error',
+          text: `❌ Unable to reach gateway at ${targetUrl}: ${err.message || 'Connection refused'}. Verify tunnel is running.`
+        });
+      }
+    }
+  };
+
+  const handleResetGateway = () => {
+    clearApiBaseUrl();
+    const def = LIVE_TUNNEL_URL;
+    setCustomGatewayUrl(def);
+    handleSaveGateway(def);
+  };
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -692,36 +744,69 @@ export default function App() {
               </div>
 
               {/* Dynamic Gateway URL Configuration for Any Visitor */}
-              <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1.25rem', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', padding: '1.25rem', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Zap size={14} style={{ color: 'var(--secondary)' }} />
                     MCP Gateway Endpoint URL
                   </label>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Configured per visitor in browser localStorage</span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleSaveGateway(LIVE_TUNNEL_URL)}
+                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', height: '26px' }}
+                      title="Auto-fill the live Cloudflare tunnel"
+                    >
+                      ⚡ Auto-Fill Active Cloudflare Tunnel
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleResetGateway}
+                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', height: '26px' }}
+                      title="Clear saved localStorage and restore default"
+                    >
+                      🔄 Reset Default
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <input
                     type="text"
                     className="chat-text-input"
-                    placeholder="http://localhost:3001 or https://your-tunnel.loca.lt"
+                    placeholder="https://your-tunnel.trycloudflare.com or http://localhost:3001"
                     value={customGatewayUrl}
                     onChange={(e) => setCustomGatewayUrl(e.target.value)}
-                    style={{ flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontSize: '0.8rem', padding: '0.4rem 0.75rem', color: 'white' }}
+                    style={{ flex: 1, minWidth: '280px', background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontSize: '0.8rem', padding: '0.4rem 0.75rem', color: 'white' }}
                   />
                   <button
                     className="btn btn-primary"
-                    onClick={() => {
-                      setApiBaseUrl(customGatewayUrl);
-                      syncBridgeStatus();
-                    }}
+                    onClick={() => handleSaveGateway()}
                     style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', borderRadius: '6px' }}
                   >
                     Save &amp; Connect
                   </button>
                 </div>
+
+                {gatewayStatusMsg && (
+                  <div style={{
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    background: gatewayStatusMsg.type === 'success' 
+                      ? 'rgba(16, 185, 129, 0.15)' 
+                      : (gatewayStatusMsg.type === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(99, 102, 241, 0.15)'),
+                    border: gatewayStatusMsg.type === 'success'
+                      ? '1px solid rgba(16, 185, 129, 0.3)'
+                      : (gatewayStatusMsg.type === 'error' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)'),
+                    color: gatewayStatusMsg.type === 'success' ? '#34d399' : (gatewayStatusMsg.type === 'error' ? '#f87171' : '#a5b4fc')
+                  }}>
+                    {gatewayStatusMsg.text}
+                  </div>
+                )}
+
                 <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  💡 <strong>For anyone using this deployed app:</strong> To connect to Power BI Desktop running on your PC, start your local bridge (<code style={{ color: 'var(--primary)' }}>node server.cjs</code>), expose it with a free HTTPS tunnel (<code style={{ color: 'var(--primary)' }}>npx localtunnel --port 3001</code>), and paste the tunnel URL above!
+                  💡 <strong>Important Note:</strong> Because this deployed app is served over secure <strong>HTTPS</strong>, web browsers block insecure <code>http://localhost:3001</code> (Mixed Content). To query your local Power BI Desktop, enter an HTTPS tunnel URL (e.g. Cloudflare Tunnel or ngrok) above, or run the frontend locally at <code>http://localhost:5173</code>.
                 </p>
               </div>
 
