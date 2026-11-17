@@ -18,12 +18,15 @@ import {
   Maximize2,
   Minimize2,
   Search,
-  X
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import { daxEngine } from './db/daxEngine';
 import { parseFuzzyQuestion, generateInsights, groundedRepository } from './services/daxGenerator';
 import { askLLM, toDaxResult } from './services/llmService';
 import { getApiBaseUrl, setApiBaseUrl } from './config';
+import { PbixStudio } from './components/PbixStudio';
+import type { PbixParsedData } from './services/pbixParser';
 import type { DaxResult } from './db/daxEngine';
 import type { GroundedQuery } from './services/daxGenerator';
 
@@ -49,7 +52,7 @@ export default function App() {
   const [activeQuery, setActiveQuery] = useState<GroundedQuery | null>(null);
   const [currentDax, setCurrentDax] = useState('');
   const [daxResult, setDaxResult] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'pbix' | 'settings'>('overview');
   const [viewTab, setViewTab] = useState<'visual' | 'table'>('visual');
   const [gridSearch, setGridSearch] = useState('');
   const [isVisualizerFullScreen, setIsVisualizerFullScreen] = useState(false);
@@ -63,6 +66,7 @@ export default function App() {
     connectionName: 'No Model Connected',
     isOffline: true
   });
+  const [pbixData, setPbixData] = useState<PbixParsedData | null>(null);
   const [localInstances, setLocalInstances] = useState<any[]>([]);
   const [liveTables, setLiveTables] = useState<any[]>([]);
   const [fabricWorkspace, setFabricWorkspace] = useState('');
@@ -90,11 +94,50 @@ export default function App() {
     }
   }, [messages]);
 
-  const handleTabChange = (tab: 'overview' | 'explorer' | 'settings') => {
+  const handleTabChange = (tab: 'overview' | 'explorer' | 'pbix' | 'settings') => {
     setActiveTab(tab);
     window.scrollTo(0, 0);
     if (document.documentElement) document.documentElement.scrollTop = 0;
     if (document.body) document.body.scrollTop = 0;
+  };
+
+  const handlePbixLoaded = (data: PbixParsedData) => {
+    setPbixData(data);
+    
+    // Enrich liveTables with extracted tables & columns
+    const userTables = data.tables.filter(t => !t.isHidden);
+    const enrichedTables = userTables.map(t => ({
+      name: t.name,
+      fields: t.columns.map(c => ({
+        name: c.name,
+        key: c.dataType || 'Dimension'
+      }))
+    }));
+    setLiveTables(enrichedTables);
+
+    // Update connection status so app treats model as active
+    setBridgeStatus(prev => ({
+      ...prev,
+      isConnected: true,
+      connectionName: data.fileName,
+      isOffline: false
+    }));
+
+    // Greet the user in Copilot with model summary and recommended questions
+    const welcomeMsg: Message = {
+      id: 'pbix_init_' + Date.now(),
+      sender: 'assistant',
+      text: `🎉 **Successfully Loaded Power BI Report: \`${data.fileName}\`**\n\nI have analyzed and extracted:\n- **${userTables.length} Data Tables** (${data.tables.reduce((acc, t) => acc + t.columns.length, 0)} total columns)\n- **${data.measures.length} DAX Measures** with complete formula definitions\n- **${data.pages.length} Report Canvas Pages** (${data.pages.reduce((acc, p) => acc + p.visuals.length, 0)} visuals)\n- **${data.relationships.length} Relationships**\n\nAsk me any question about your data, measures, trends, or ask me to formulate new DAX queries for your report!`,
+      timestamp: new Date(),
+      suggestions: [
+        `Summarize the key metrics and measures in ${data.fileName}`,
+        data.measures.length > 0 ? `Explain the calculation logic of measure [${data.measures[0].name}]` : 'Show total record distribution',
+        `What tables and relationships exist in this data model?`,
+        `Suggest 5 new DAX measures to calculate performance for this dataset`
+      ]
+    };
+
+    setMessages(prev => [...prev, welcomeMsg]);
   };
 
   // Auto-fetch schema tables when connection changes
@@ -299,19 +342,21 @@ export default function App() {
       timestamp: new Date()
     };
 
-    // LIVE MODE: use Gemini to generate DAX from real schema
-    if (bridgeStatus.isConnected) {
+    // LIVE or PBIX MODE: use Gemini to generate DAX from real schema
+    if (bridgeStatus.isConnected || pbixData) {
       const liveSteps = [
-        { name: 'Reading live model schema', status: 'running' as const },
+        { name: pbixData ? 'Reading PBIX model schema' : 'Reading live model schema', status: 'running' as const },
         { name: 'Gemini generating DAX query', status: 'pending' as const },
-        { name: 'Executing DAX via Modeling MCP', status: 'pending' as const },
+        { name: bridgeStatus.isConnected && !pbixData ? 'Executing DAX via Modeling MCP' : 'Synthesizing grounded data preview', status: 'pending' as const },
         { name: 'Synthesizing chart & narrative', status: 'pending' as const },
       ];
 
       const assistantMessage: Message = {
         id: assistantMsgId,
         sender: 'assistant',
-        text: 'Analyzing your question against the active Power BI semantic model...',
+        text: pbixData 
+          ? `Analyzing your question against ${pbixData.fileName}...`
+          : 'Analyzing your question against the active Power BI semantic model...',
         timestamp: new Date(),
         statusSteps: liveSteps
       };
@@ -335,7 +380,21 @@ export default function App() {
       try {
         advanceStep(1);
 
-        const askResponse = await askLLM(questionText);
+        const askResponse = await askLLM({
+          question: questionText,
+          customSchema: pbixData ? {
+            tables: pbixData.tables.filter(t => !t.isHidden).map(t => ({
+              name: t.name,
+              columns: t.columns.map(c => ({ name: c.name, dataType: c.dataType }))
+            })),
+            measures: pbixData.measures.map(m => ({
+              name: m.name,
+              expression: m.expression,
+              description: m.description
+            })),
+            fileName: pbixData.fileName
+          } : undefined
+        });
 
         advanceStep(2);
 
@@ -349,7 +408,7 @@ export default function App() {
           dax: askResponse.dax,
           category: 'general',
           chartType: detectChartType(questionText, result),
-          description: askResponse.explanation || 'Live query result from active Power BI model.'
+          description: askResponse.explanation || (pbixData ? `Query formulated for ${pbixData.fileName}.` : 'Live query result from active Power BI model.')
         };
         setActiveQuery(liveQueryInfo);
         setCurrentDax(askResponse.dax);
@@ -362,7 +421,7 @@ export default function App() {
             ...msg,
             text: askResponse.error
               ? `⚠️ DAX execution notice: ${askResponse.error}`
-              : `✅ **DAX executed successfully against your model.**\n${askResponse.explanation}`,
+              : `✅ **DAX formulated successfully for ${pbixData ? pbixData.fileName : 'your model'}.**\n${askResponse.explanation}`,
             statusSteps: undefined,
             queryInfo: liveQueryInfo,
             daxResult: result,
@@ -384,14 +443,14 @@ export default function App() {
       return;
     }
 
-    // OFFLINE MODE: inform user to connect
+    // OFFLINE MODE: inform user to connect or add .pbix
     const queryInfo = parseFuzzyQuestion(questionText);
     setActiveQuery(queryInfo);
 
     const assistantMessage: Message = {
       id: assistantMsgId,
       sender: 'assistant',
-      text: '⚠️ No Power BI model is currently connected. Please open a Power BI Desktop file and connect under Connection Settings to query your data.',
+      text: '⚠️ No Power BI model is currently connected. Please open a Power BI Desktop file under Connection Settings, or upload a `.pbix` file under **PBIX File Studio** to query your data.',
       timestamp: new Date()
     };
 
@@ -487,6 +546,19 @@ export default function App() {
           </div>
 
           <div 
+            className={`nav-item ${activeTab === 'pbix' ? 'active' : ''}`} 
+            onClick={() => handleTabChange('pbix')}
+          >
+            <FileSpreadsheet size={16} style={{ color: pbixData ? '#10b981' : undefined }} />
+            <span>PBIX File Studio</span>
+            {pbixData && (
+              <span className="badge" style={{ marginLeft: 'auto', padding: '1px 5px', fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399' }}>
+                Active
+              </span>
+            )}
+          </div>
+
+          <div 
             className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} 
             onClick={() => handleTabChange('settings')}
             style={{ marginTop: '1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '1.5rem' }}
@@ -513,6 +585,7 @@ export default function App() {
             <h1 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
               {activeTab === 'overview' && 'Power BI Model Overview'}
               {activeTab === 'explorer' && 'Semantic Model Schema Explorer'}
+              {activeTab === 'pbix' && 'Power BI Report (.PBIX) Studio & Analyzer'}
               {activeTab === 'settings' && 'MCP Connection Gateway Manager'}
             </h1>
             
@@ -545,6 +618,16 @@ export default function App() {
 
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button 
+              className={`btn ${activeTab === 'pbix' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handleTabChange('pbix')}
+              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', height: '32px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              title="Add or inspect a .pbix report file"
+            >
+              <FileSpreadsheet size={13} style={{ color: pbixData ? '#34d399' : '#a855f7' }} />
+              <span>{pbixData ? pbixData.fileName : 'Add .pbix File'}</span>
+            </button>
+
+            <button 
               className="btn btn-secondary" 
               onClick={syncBridgeStatus}
               style={{ padding: '0.35rem 0.6rem', height: '32px' }}
@@ -570,11 +653,13 @@ export default function App() {
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
               {activeTab === 'overview' && 'Model Analytics & AI Insights'}
               {activeTab === 'explorer' && 'Live Schema Tables & Columns Explorer'}
+              {activeTab === 'pbix' && 'PBIX Report Archive & Model Extraction'}
               {activeTab === 'settings' && 'Power BI Desktop / Fabric XMLA Gateway Bridge'}
             </h2>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               {activeTab === 'overview' && 'Ask analytical questions in natural language to run grounded DAX queries against your model.'}
               {activeTab === 'explorer' && 'Browse active tables, column data types, and semantic structures discovered in your Power BI model.'}
+              {activeTab === 'pbix' && 'Inspect extracted tables, calculated DAX measures, relationships, and report pages from your .pbix file.'}
               {activeTab === 'settings' && 'Establish local Power BI Desktop connections or cloud-based XMLA workspace endpoints to query semantic models.'}
             </p>
           </div>
@@ -780,6 +865,17 @@ export default function App() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Dedicated PBIX File Studio View */}
+          {activeTab === 'pbix' && (
+            <PbixStudio 
+              pbixData={pbixData}
+              onPbixLoaded={handlePbixLoaded}
+              onAskQuestion={handleSuggestionClick}
+              isBridgeConnected={bridgeStatus.isConnected}
+              onRefreshBridge={syncBridgeStatus}
+            />
           )}
 
           {/* Active Analysis Core Canvas Grid (Overview Tab) */}

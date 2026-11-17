@@ -92,6 +92,7 @@ sequenceDiagram
 
 ## ✨ Key Features
 
+- **📁 PBIX File Studio & Direct Upload**: Drag & drop any `.pbix` or `.pbit` report file directly into the app. Automatically unzips and extracts the semantic data model, DAX measures with exact formulas, relationships, and report canvas pages for deep Copilot analysis — even without Power BI Desktop installed!
 - **Dynamic & Model-Agnostic**: Works with **ANY** Power BI model (Sales, Demand Forecasting, Cloud, Finance, HR, Inventory, Marketing, etc.). No hardcoded tables, columns, or metrics.
 - **Port Auto-Discovery**: Automatically scans local Analysis Services ports (`msmdsrv.port.txt` in Store App and standard MSI paths) and connects to running Power BI Desktop instances in one click.
 - **Strict Schema Grounding**: Gemini is provided the exact tables, column data types, and measures from your live model, eliminating hallucinations.
@@ -110,7 +111,7 @@ sequenceDiagram
 
 The application is deployed live at: **[https://power-bi-ai-analyst.vercel.app](https://power-bi-ai-analyst.vercel.app)**
 
-Depending on your goal, there are **3 distinct ways** anyone can use this app:
+Depending on your goal, there are **4 distinct ways** anyone can use this app:
 
 ---
 
@@ -132,8 +133,27 @@ When the host system is active, the deployed web app is already bridged to a liv
 
 ---
 
-### 💻 Scenario 2: Connect to YOUR OWN Power BI Desktop File (`.pbix`)
-> **Best for:** Data analysts and team members who want to query their own local `.pbix` reports using this AI frontend.
+### 📁 Scenario 2: Add / Upload a `.pbix` File Directly (Instant In-Browser & Copilot Analysis)
+> **Best for:** Anyone with a `.pbix` or `.pbit` file who wants instant schema extraction, DAX measure inspection, report canvas breakdown, and AI Q&A — **no Power BI Desktop installation required**!
+
+1. Open [https://power-bi-ai-analyst.vercel.app](https://power-bi-ai-analyst.vercel.app) (on **Mac, Windows, iPad, or Linux**).
+2. Click **PBIX File Studio** in the left sidebar (or the **Add .pbix File** button in the header).
+3. **Drag & drop** your `.pbix` or `.pbit` file into the upload zone.
+4. The built-in extraction engine unzips the archive in memory and extracts:
+   - **All DAX Measures** with complete mathematical formulas and logic
+   - **All Model Tables & Columns** with data types and relationships
+   - **All Report Canvas Pages** and individual chart/matrix visual containers
+5. **Ask Copilot anything about the file**:
+   - *"Summarize the key metrics and measures in this report"*
+   - *"Explain the calculation logic and performance of measure [Margin %]"*
+   - *"Audit the relationships between 'Sales' and 'Customers'"*
+   - *"Suggest 5 new DAX measures to calculate performance for this dataset"*
+   - *"Review the visuals on Page 1 and recommend improvements"*
+
+---
+
+### 💻 Scenario 3: Connect to YOUR OWN Power BI Desktop File (`.pbix`) via Live Gateway
+> **Best for:** Data analysts and team members who want to run live DAX queries against their active in-memory `.pbix` reports using this AI frontend.
 
 Because Power BI Desktop stores data in a local in-memory database (`msmdsrv.exe`) on your Windows PC, browsers running on the public cloud cannot reach your private `localhost` directly without a secure HTTPS bridge. 
 
@@ -184,7 +204,7 @@ In a second terminal, expose your local bridge (`http://localhost:3001`) via a f
 
 ---
 
-### ☁️ Scenario 3: 100% Cloud / Enterprise (Microsoft Fabric & Power BI XMLA)
+### ☁️ Scenario 4: 100% Cloud / Enterprise (Microsoft Fabric & Power BI XMLA)
 > **Best for:** Enterprise teams using Power BI Service (Premium / Fabric) who want to query cloud semantic models without running any local software.
 
 1. Open [https://power-bi-ai-analyst.vercel.app](https://power-bi-ai-analyst.vercel.app) on **any device** (Windows, Mac, iPad, Linux, smartphone).
@@ -200,12 +220,13 @@ In a second terminal, expose your local bridge (`http://localhost:3001`) via a f
 
 ### 📊 Summary Comparison
 
-| Feature / Scenario | 🌟 Scenario 1: Host Demo | 💻 Scenario 2: Your Own `.pbix` | ☁️ Scenario 3: Cloud Fabric XMLA |
-|---|---|---|---|
-| **Local Setup Needed** | ❌ None (0 sec) | ⚙️ Run `server.cjs` + Tunnel | ❌ None |
-| **User Device** | Any (PC, Mac, Mobile) | Windows (where PBI runs) | Any (PC, Mac, Mobile) |
-| **Dataset Source** | Host's active model | Your private `.pbix` file | Power BI Service / Fabric |
-| **Privacy / Isolation** | Shared demo model | 100% Local to your PC | Microsoft Entra / Tenant Cloud |
+| Feature / Scenario | 🌟 Scenario 1: Host Demo | 📁 Scenario 2: Add `.pbix` File | 💻 Scenario 3: Local Live `.pbix` | ☁️ Scenario 4: Cloud Fabric XMLA |
+|---|---|---|---|---|
+| **Local Software Needed** | ❌ None (0 sec) | ❌ None (Drag & drop file) | ⚙️ Run `server.cjs` + Tunnel | ❌ None |
+| **User Device** | Any (PC, Mac, Mobile) | Any (PC, Mac, Mobile) | Windows (where PBI runs) | Any (PC, Mac, Mobile) |
+| **Dataset Source** | Host's active model | Uploaded `.pbix` / `.pbit` | Your private `.pbix` file | Power BI Service / Fabric |
+| **Analysis Type** | Live DAX query rows | Schema, DAX logic, AI Q&A | Live row-level DAX queries | Live cloud XMLA DAX queries |
+| **Privacy / Isolation** | Shared demo model | 100% in-browser memory | 100% Local to your PC | Microsoft Entra / Tenant Cloud |
 
 ---
 

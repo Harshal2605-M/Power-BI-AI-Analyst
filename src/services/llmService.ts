@@ -10,10 +10,24 @@ export interface AskResponse {
   error?: string;
   offline?: boolean;
   suggestions?: string[];
+  isPbixAnalysis?: boolean;
 }
 
-export async function askLLM(question: string): Promise<AskResponse> {
+export interface AskLLMOptions {
+  question: string;
+  customSchema?: {
+    tables: { name: string; columns: { name: string; dataType: string }[] }[];
+    measures: { name: string; description?: string; expression?: string }[];
+    fileName?: string;
+  };
+}
+
+export async function askLLM(optionsOrQuestion: string | AskLLMOptions): Promise<AskResponse> {
   const baseUrl = getApiBaseUrl();
+  const body = typeof optionsOrQuestion === 'string'
+    ? { question: optionsOrQuestion }
+    : { question: optionsOrQuestion.question, customSchema: optionsOrQuestion.customSchema };
+
   const response = await fetch(`${baseUrl}/api/ask`, {
     method: 'POST',
     headers: {
@@ -21,7 +35,7 @@ export async function askLLM(question: string): Promise<AskResponse> {
       'Bypass-Tunnel-Reminder': 'true',
       'ngrok-skip-browser-warning': 'true'
     },
-    body: JSON.stringify({ question })
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {

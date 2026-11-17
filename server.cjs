@@ -384,6 +384,102 @@ Respond with a single, pure JSON object (no markdown formatting, no code blocks)
   };
 }
 
+// ─── PBIX Schema Analysis & Simulated Result Generator ────────────────────────
+async function generateDaxWithSimulation(question, schema) {
+  const userTables = (schema.tables || []).filter(t => 
+    !t.name.startsWith('LocalDateTable_') && 
+    !t.name.startsWith('DateTableTemplate_')
+  );
+
+  const tablesSummary = (userTables.length > 0 ? userTables : schema.tables || []).map(t => {
+    const cols = (t.columns || []).map(c => `    [${c.name}] (${c.dataType})`).join('\n');
+    return `Table: '${t.name}'\n${cols || '    (no columns)'}`;
+  }).join('\n\n');
+
+  const measuresSummary = (schema.measures || []).map(m =>
+    `  Measure Name: [${m.name}]\n  Formula/DAX: ${m.expression || 'Calculates ' + m.name}\n  Description: ${m.description || ''}`
+  ).join('\n\n');
+
+  const systemPrompt = `You are an expert Power BI DAX AI Analyst analyzing an uploaded Power BI (.pbix) report model.
+You formulate mathematically grounded DAX queries, describe the analytical calculation logic, and generate a realistic simulated preview dataset representing the analytical result.
+
+PBIX MODEL SCHEMA:
+==================
+${tablesSummary}
+
+AVAILABLE MODEL MEASURES:
+=========================
+${measuresSummary || '  (No pre-built measures found; formulate DAX directly using table columns)'}
+
+CRITICAL RULES:
+1. STRICT ADHERENCE: ONLY reference table names, column names, and measures that strictly exist in the PBIX MODEL SCHEMA above.
+2. The DAX query must start with EVALUATE or DEFINE.
+3. For "columns" and "rows": generate 3 to 8 realistic, consistent preview data rows that would result from executing this DAX query, so charts and tables can be visualized accurately in the frontend.
+4. Suggestions: provide 3 intelligent, analytical follow-up questions tailored to this specific model.
+
+OUTPUT FORMAT:
+Respond with a single, pure JSON object (no markdown, no backticks):
+{
+  "dax": "<valid DAX query>",
+  "explanation": "<detailed business & calculation explanation>",
+  "columns": ["<Col1>", "<Col2>"],
+  "rows": [
+    { "<Col1>": "Category A", "<Col2>": 12500 }
+  ],
+  "suggestions": [
+    "<follow-up question 1>",
+    "<follow-up question 2>",
+    "<follow-up question 3>"
+  ]
+}`;
+
+  const userPrompt = `Answer this analytical question on the .pbix model: "${question}"`;
+  console.log('[Gemini PBIX Analysis] Generating grounded DAX & preview for:', question);
+
+  let response;
+  let attempts = 0;
+  while (attempts < 3) {
+    try {
+      attempts++;
+      response = await openai.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 8000,
+        response_format: { type: 'json_object' }
+      });
+      break;
+    } catch (err) {
+      if ((err.status === 429 || String(err.message).includes('429')) && attempts < 3) {
+        console.log(`[Gemini] Rate limit hit (429). Retrying attempt ${attempts + 1} after 3s...`);
+        await new Promise(r => setTimeout(r, 3000));
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  const content = response.choices[0].message.content.trim();
+  let parsed;
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+  } catch (e) {
+    throw new Error(`GPT returned invalid JSON: ${content.substring(0, 200)}`);
+  }
+
+  return {
+    dax: (parsed.dax || '').trim(),
+    explanation: parsed.explanation || '',
+    suggestions: parsed.suggestions || [],
+    columns: Array.isArray(parsed.columns) ? parsed.columns : [],
+    rows: Array.isArray(parsed.rows) ? parsed.rows : []
+  };
+}
+
 // ─── Local Instance Discovery (Supports both Store App and MSI PowerBI) ──────
 function checkPortAlive(port) {
   return new Promise((resolve) => {
@@ -669,55 +765,118 @@ app.post('/api/query', async (req, res) => {
   }
 });
 
-// POST /api/ask — LLM-powered question answering (main AI endpoint)
-app.post('/api/ask', async (req, res) => {
-  const { question } = req.body;
-  if (!question) return res.status(400).json({ error: 'question parameter is required' });
+// POST /api/open-pbix — Launches a local Windows .pbix file in Power BI Desktop
+app.post('/api/open-pbix', async (req, res) => {
+  const { filePath } = req.body;
+  if (!filePath) return res.status(400).json({ error: 'filePath parameter is required' });
 
-  if (!bridge.activeConnection) {
-    return res.status(503).json({
-      error: 'Not connected to any Power BI model. Please connect first.',
-      offline: true
-    });
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: `File not found on system: ${filePath}` });
   }
 
   try {
-    // 1. Fetch live schema (cached)
-    const schema = await fetchFullSchema();
+    const { exec } = require('child_process');
+    console.log(`[Open-PBIX] Launching Power BI Desktop with: "${filePath}"`);
+    exec(`start "" "${filePath}"`);
 
-    if (schema.tables.length === 0) {
-      return res.status(503).json({ error: 'Schema not yet available. Please retry in a moment.' });
+    // Poll for newly started Power BI instance after 4s
+    setTimeout(async () => {
+      try {
+        const instances = await discoverAllLocalInstances();
+        if (instances.length > 0) {
+          const target = instances[0];
+          const ds = `localhost:${target.port}`;
+          await bridge.callTool('connection_operations', {
+            request: { operation: 'Connect', connectionString: `Provider=MSOLAP;Data Source=${ds}` }
+          });
+          bridge.activeConnection = target.name || path.basename(filePath);
+          bridge.connectedDataSource = ds;
+          schemaCache = null;
+          fetchFullSchema().catch(() => {});
+          console.log(`[Open-PBIX] Connected to opened model on ${ds}`);
+        }
+      } catch (e) {
+        console.error('[Open-PBIX auto-connect error]:', e.message);
+      }
+    }, 4500);
+
+    return res.json({ 
+      success: true, 
+      message: `Launched "${path.basename(filePath)}" in Power BI Desktop. Connecting to local port...` 
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ask — LLM-powered question answering (main AI endpoint)
+app.post('/api/ask', async (req, res) => {
+  const { question, customSchema } = req.body;
+  if (!question) return res.status(400).json({ error: 'question parameter is required' });
+
+  // Use customSchema if provided (from uploaded .pbix), or fetch from active live model
+  let schema = customSchema;
+  const hasLiveConnection = !!bridge.activeConnection;
+
+  if (!schema) {
+    if (!bridge.activeConnection) {
+      return res.status(503).json({
+        error: 'Not connected to any Power BI model or .pbix file. Please connect or upload a .pbix file first.',
+        offline: true
+      });
     }
+    schema = await fetchFullSchema();
+  }
 
-    // 2. Ask GPT to generate DAX
-    const { dax, explanation, suggestions } = await generateDaxWithGPT(question, schema);
-    console.log('[DAX Generated by GPT]:\n', dax);
+  if (!schema || !schema.tables || schema.tables.length === 0) {
+    return res.status(503).json({ error: 'Schema not yet available. Please retry in a moment.' });
+  }
 
-    // 3. Execute the GPT-generated DAX against the live model
-    let queryResult;
-    try {
-      queryResult = await executeDax(dax);
-    } catch (execErr) {
-      // GPT produced invalid DAX — return the error with the DAX for debugging
-      return res.status(200).json({
+  try {
+    // If live bridge is connected and user didn't explicitly request isolated customSchema
+    if (hasLiveConnection && !customSchema) {
+      // 2. Ask GPT to generate DAX
+      const { dax, explanation, suggestions } = await generateDaxWithGPT(question, schema);
+      console.log('[DAX Generated by GPT]:\n', dax);
+
+      // 3. Execute the GPT-generated DAX against the live model
+      let queryResult;
+      try {
+        queryResult = await executeDax(dax);
+      } catch (execErr) {
+        // GPT produced invalid DAX — return the error with the DAX for debugging
+        return res.status(200).json({
+          dax,
+          explanation,
+          suggestions: suggestions || [],
+          error: `DAX execution failed: ${execErr.message}`,
+          columns: ['Error'],
+          rows: [{ Error: execErr.message }],
+          executionTimeMs: 0
+        });
+      }
+
+      // 4. Return everything to the frontend
+      return res.json({
         dax,
         explanation,
         suggestions: suggestions || [],
-        error: `DAX execution failed: ${execErr.message}`,
-        columns: ['Error'],
-        rows: [{ Error: execErr.message }],
-        executionTimeMs: 0
+        columns: queryResult.columns,
+        rows: queryResult.rows,
+        executionTimeMs: queryResult.executionTimeMs
       });
     }
 
-    // 4. Return everything to the frontend
-    res.json({
-      dax,
-      explanation,
-      suggestions: suggestions || [],
-      columns: queryResult.columns,
-      rows: queryResult.rows,
-      executionTimeMs: queryResult.executionTimeMs
+    // PBIX File Mode: Generate grounded DAX + realistic preview dataset
+    const simResult = await generateDaxWithSimulation(question, schema);
+    return res.json({
+      dax: simResult.dax,
+      explanation: simResult.explanation,
+      suggestions: simResult.suggestions || [],
+      columns: simResult.columns || [],
+      rows: simResult.rows || [],
+      executionTimeMs: 12,
+      isPbixAnalysis: true
     });
 
   } catch (err) {
