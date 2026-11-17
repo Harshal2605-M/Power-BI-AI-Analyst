@@ -64,7 +64,7 @@ export default function App() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth <= 1024) {
+    if (typeof window !== 'undefined' && window.innerWidth <= 1280) {
       setCopilotCollapsed(true);
     }
   }, []);
